@@ -31,6 +31,26 @@ export default function App() {
   const [reportNucleo, setReportNucleo] = useState('todos')
   const [reportPnf, setReportPnf] = useState('todos')
   const [selectedEstado, setSelectedEstado] = useState('Distrito Capital')
+  const [geoFeatures, setGeoFeatures] = useState([])
+  const [mapLoadError, setMapLoadError] = useState('')
+  useEffect(() => {
+    const url = 'https://services3.arcgis.com/yaewiDuOIcucvCmt/ArcGIS/rest/services/DPA_Venezuela/FeatureServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=geojson'
+    fetch(url).then(response => { if (!response.ok) throw new Error('No se pudo cargar el mapa geográfico'); return response.json() })
+      .then(data => { setGeoFeatures(data.features || []); setMapLoadError('') })
+      .catch(() => setMapLoadError('No se pudo cargar el mapa geográfico. Puedes seleccionar el estado desde la lista.'))
+  }, [])
+  const normalizeEstado = value => String(value || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLocaleLowerCase('es').replace(/estado| state| distrito capital| distrito federal/g, '').trim()
+  const geoEstadoName = feature => {
+    const props = feature?.properties || {}
+    const vals = Object.values(props).filter(v => typeof v === 'string')
+    return estadosVenezuela.find(estado => vals.some(v => normalizeEstado(v) === normalizeEstado(estado) || normalizeEstado(v).startsWith(normalizeEstado(estado) + ' '))) || ''
+  }
+  const projectGeoPoint = point => [((point[0] + 74) / 15) * 600, ((13 - point[1]) / 13) * 500]
+  const geoPath = geometry => {
+    if (!geometry) return ''
+    const rings = geometry.type === 'Polygon' ? geometry.coordinates : geometry.type === 'MultiPolygon' ? geometry.coordinates.flat(1) : []
+    return rings.map(ring => ring.map((point, i) => { const [x,y] = projectGeoPoint(point); return (i ? 'L' : 'M') + x.toFixed(2) + ' ' + y.toFixed(2) }).join(' ') + ' Z').join(' ')
+  }
   const estadosVenezuela = ['Zulia','Falcón','Lara','Yaracuy','Carabobo','Aragua','Distrito Capital','La Guaira','Miranda','Anzoátegui','Sucre','Nueva Esparta','Trujillo','Portuguesa','Cojedes','Guárico','Monagas','Mérida','Barinas','Apure','Táchira','Amazonas','Bolívar','Delta Amacuro']
   const estadoTiles = [['Zulia',1,2],['Falcón',2,2],['Lara',3,3],['Yaracuy',4,3],['Carabobo',5,3],['Aragua',6,3],['Distrito Capital',7,3],['La Guaira',8,2],['Miranda',8,3],['Anzoátegui',9,3],['Sucre',10,3],['Nueva Esparta',10,2],['Trujillo',3,4],['Portuguesa',4,4],['Cojedes',5,4],['Guárico',6,4],['Monagas',9,4],['Mérida',2,5],['Barinas',4,5],['Apure',5,5],['Táchira',2,6],['Amazonas',5,7],['Bolívar',7,5],['Delta Amacuro',10,5]]
   const isAdmin = String(session?.user?.email || '').toLowerCase() === 'bancodepreguntasunes@gmail.com'
@@ -201,12 +221,13 @@ export default function App() {
           <div className="map-layout">
             <article className="report-chart map-visual">
               <div className="map-title"><div><h3>Mapa esquemático de Venezuela</h3><p className="muted">Selecciona un estado para ver sus indicadores.</p></div><span className="pill">{nucleos.filter(n=>n.estado).length} núcleos ubicados</span></div>
-              <div className="venezuela-cartogram" role="group" aria-label="Estados de Venezuela">
-                {estadoTiles.map(([estado,col,row]) => <button key={estado} type="button" className={'state-tile ' + (selectedEstado === estado ? 'state-selected' : '') + (countFor(estado) ? ' state-has-data' : '')} style={{gridColumn:col,gridRow:row}} onClick={() => setSelectedEstado(estado)} title={estado + ': ' + countFor(estado) + ' núcleos'}>
-                  <span>{estado}</span><b>{countFor(estado)}</b>
-                </button>)}
+              {mapLoadError && <p className="alert error">{mapLoadError}</p>}
+              <div className="real-venezuela-map" role="group" aria-label="Mapa geográfico de Venezuela por estados">
+                {geoFeatures.length ? <svg viewBox="0 0 600 500" role="img" aria-label="Mapa geográfico interactivo de Venezuela">
+                  {geoFeatures.map((feature,i) => { const estado=geoEstadoName(feature); if (!estado) return null; return <path key={feature.id || i} d={geoPath(feature.geometry)} className={'geo-state ' + (selectedEstado===estado?'geo-state-selected':'') + (countFor(estado)?' geo-state-has-data':'')} onClick={()=>setSelectedEstado(estado)} tabIndex="0" role="button" aria-label={estado} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelectedEstado(estado)}}}><title>{estado}: {countFor(estado)} núcleos</title></path> })}
+                </svg> : <div className="map-placeholder">Cargando mapa geográfico de Venezuela…</div>}
               </div>
-              <p className="map-note">Esquema interactivo por estado, no a escala geográfica. Los números indican cuántos núcleos tienen un estado asignado.</p>
+              <p className="map-note">Selecciona una división territorial en el mapa. El tono verde indica que hay núcleos asignados a ese estado.</p>
               <label>Seleccionar estado<select value={selectedEstado} onChange={e=>setSelectedEstado(e.target.value)}>{estadosVenezuela.map(estado=><option key={estado}>{estado}</option>)}</select></label>
             </article>
             <article className="report-chart state-summary">
