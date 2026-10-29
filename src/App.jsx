@@ -39,7 +39,7 @@ export default function App() {
       .then(data => { setGeoFeatures(data.features || []); setMapLoadError('') })
       .catch(() => setMapLoadError('No se pudo cargar el mapa geográfico. Puedes seleccionar el estado desde la lista.'))
   }, [])
-  const normalizeEstado = value => String(value || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLocaleLowerCase('es').replace(/estado| state| distrito capital| distrito federal/g, '').trim()
+  const normalizeEstado = value => String(value || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLocaleLowerCase('es').replace(/^(estado|state)\s+/, '').trim()
   const geoEstadoName = feature => {
     const props = feature?.properties || {}
     const vals = Object.values(props).filter(v => typeof v === 'string')
