@@ -46,7 +46,8 @@ export default function App() {
 
   useEffect(() => {
     if (!supabaseConfigured || session) return
-    supabase.from('nucleos').select('id,nombre,activo').order('nombre').then(({ data }) => {
+    supabase.from('nucleos').select('id,nombre,activo').order('nombre').then(({ data, error }) => {
+      if (error) { setError('No se pudo cargar la lista de núcleos: ' + error.message); return }
       if (data) { setNucleos(data); if (!signupNucleo && data.length) setSignupNucleo(String(data[0].id)) }
     })
   }, [session])
