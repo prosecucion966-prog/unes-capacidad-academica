@@ -30,6 +30,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('registro')
   const [reportNucleo, setReportNucleo] = useState('todos')
   const [reportPnf, setReportPnf] = useState('todos')
+  const pnfOptions = ['PNF en Investigación Penal', 'PNF en Ciencias del Fuego y Seguridad contra Incendios', 'PNF en Protección Civil y Administración de Desastres', 'PNF en Servicio Penitenciario', 'PNF en Prevención y Seguridad Ciudadana', 'PNF en Emergencia Prehospitalaria']
+  const normalizePnf = value => String(value || '').trim().replace(/\\s+/g, ' ').toLocaleLowerCase('es')
 
   useEffect(() => {
     if (!supabaseConfigured) { setLoading(false); return }
@@ -177,10 +179,10 @@ export default function App() {
         <button className={activeTab === 'reportes' ? 'tab active-tab' : 'tab'} onClick={() => setActiveTab('reportes')}>📊 Reportes y estadísticas</button>
       </nav>
       {activeTab === 'reportes' && (() => {
-        const filtered = capacidades.filter(c => (reportNucleo === 'todos' || String(c.nucleo_id) === reportNucleo) && (reportPnf === 'todos' || c.programa === reportPnf))
+        const filtered = capacidades.filter(c => (reportNucleo === 'todos' || String(c.nucleo_id) === reportNucleo) && (reportPnf === 'todos' || normalizePnf(c.programa) === normalizePnf(reportPnf)))
         const totalDoc = filtered.reduce((a,c) => a + Number(c.cantidad_docentes || 0), 0)
         const totalEst = filtered.reduce((a,c) => a + Number(c.cantidad_estudiantes || 0), 0)
-        const programs = [...new Set(capacidades.map(c => c.programa).filter(Boolean))].sort()
+        const programs = pnfOptions.filter(p => capacidades.some(c => normalizePnf(c.programa) === normalizePnf(p)))
         const byPnf = programs.map(p => ({ name:p, docentes:filtered.filter(c=>c.programa===p).reduce((a,c)=>a+Number(c.cantidad_docentes||0),0), estudiantes:filtered.filter(c=>c.programa===p).reduce((a,c)=>a+Number(c.cantidad_estudiantes||0),0) })).filter(x=>x.docentes+x.estudiantes>0)
         const byNucleo = nucleos.map(n=>({name:n.nombre, docentes:filtered.filter(c=>c.nucleo_id===n.id).reduce((a,c)=>a+Number(c.cantidad_docentes||0),0), estudiantes:filtered.filter(c=>c.nucleo_id===n.id).reduce((a,c)=>a+Number(c.cantidad_estudiantes||0),0)})).filter(x=>x.docentes+x.estudiantes>0).sort((a,b)=>b.estudiantes-a.estudiantes)
         const maxP = Math.max(1,...byPnf.map(x=>x.estudiantes))
@@ -189,7 +191,7 @@ export default function App() {
           <div className="report-heading"><div><p className="eyebrow">ANÁLISIS INSTITUCIONAL</p><h2>Panel de reportes</h2><p className="muted">Explora la capacidad académica con filtros dinámicos.</p></div><button className="primary" onClick={exportPdf}>Descargar PDF</button></div>
           <div className="report-filters">
             <label>Filtrar por núcleo<select value={reportNucleo} onChange={e=>setReportNucleo(e.target.value)}><option value="todos">Todos los núcleos</option>{nucleos.map(n=><option key={n.id} value={String(n.id)}>{n.nombre}</option>)}</select></label>
-            <label>Filtrar por PNF<select value={reportPnf} onChange={e=>setReportPnf(e.target.value)}><option value="todos">Todos los PNF</option>{programs.map(p=><option key={p}>{p}</option>)}</select></label>
+            <label>Filtrar por PNF<select value={reportPnf} onChange={e=>setReportPnf(e.target.value)}><option value="todos">Todos los PNF</option>{pnfOptions.map(p=><option key={p} value={p}>{p}</option>)}</select></label>
           </div>
           <div className="report-kpis">
             <article className="report-kpi"><span>Registros encontrados</span><strong>{filtered.length}</strong><small>Según los filtros aplicados</small></article>
