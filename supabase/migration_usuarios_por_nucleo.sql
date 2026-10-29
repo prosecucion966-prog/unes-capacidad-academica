@@ -51,7 +51,7 @@ grant select, insert, update, delete on public.capacidad_academica to authentica
 drop policy if exists "auth users manage nucleos" on public.nucleos;
 drop policy if exists "public read active nuclei" on public.nucleos;
 create policy "public read active nuclei" on public.nucleos
-for select to anon, authenticated using (activo = true or public.es_admin_unes());
+for select to anon, authenticated using (true);
 
 drop policy if exists "auth users manage extensiones" on public.extensiones;
 drop policy if exists "users read own nucleus extensions" on public.extensiones;
