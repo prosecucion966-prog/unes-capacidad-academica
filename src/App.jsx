@@ -24,6 +24,9 @@ export default function App() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
+  const [activeTab, setActiveTab] = useState('registro')
+  const [reportNucleo, setReportNucleo] = useState('todos')
+  const [reportPnf, setReportPnf] = useState('todos')
 
   useEffect(() => {
     if (!supabaseConfigured) { setLoading(false); return }
@@ -135,6 +138,40 @@ export default function App() {
     <main className="content">
       <div className="welcome"><div><p className="eyebrow">PANEL DE CONTROL</p><h1>Registro académico</h1><p className="muted">Administra núcleos, extensiones y capacidad académica.</p></div><button className="primary" onClick={exportPdf}>Descargar reporte PDF</button></div>
       {error && <p className="alert error">{error}</p>}{notice && <p className="alert success">{notice}</p>}
+      <nav className="report-tabs">
+        <button className={activeTab === 'registro' ? 'tab active-tab' : 'tab'} onClick={() => setActiveTab('registro')}>Registro académico</button>
+        <button className={activeTab === 'reportes' ? 'tab active-tab' : 'tab'} onClick={() => setActiveTab('reportes')}>📊 Reportes y estadísticas</button>
+      </nav>
+      {activeTab === 'reportes' && (() => {
+        const filtered = capacidades.filter(c => (reportNucleo === 'todos' || String(c.nucleo_id) === reportNucleo) && (reportPnf === 'todos' || c.programa === reportPnf))
+        const totalDoc = filtered.reduce((a,c) => a + Number(c.cantidad_docentes || 0), 0)
+        const totalEst = filtered.reduce((a,c) => a + Number(c.cantidad_estudiantes || 0), 0)
+        const programs = [...new Set(capacidades.map(c => c.programa).filter(Boolean))].sort()
+        const byPnf = programs.map(p => ({ name:p, docentes:filtered.filter(c=>c.programa===p).reduce((a,c)=>a+Number(c.cantidad_docentes||0),0), estudiantes:filtered.filter(c=>c.programa===p).reduce((a,c)=>a+Number(c.cantidad_estudiantes||0),0) })).filter(x=>x.docentes+x.estudiantes>0)
+        const byNucleo = nucleos.map(n=>({name:n.nombre, docentes:filtered.filter(c=>c.nucleo_id===n.id).reduce((a,c)=>a+Number(c.cantidad_docentes||0),0), estudiantes:filtered.filter(c=>c.nucleo_id===n.id).reduce((a,c)=>a+Number(c.cantidad_estudiantes||0),0)})).filter(x=>x.docentes+x.estudiantes>0).sort((a,b)=>b.estudiantes-a.estudiantes)
+        const maxP = Math.max(1,...byPnf.map(x=>x.estudiantes))
+        const maxN = Math.max(1,...byNucleo.map(x=>x.estudiantes))
+        return <section className="reports-area">
+          <div className="report-heading"><div><p className="eyebrow">ANÁLISIS INSTITUCIONAL</p><h2>Panel de reportes</h2><p className="muted">Explora la capacidad académica con filtros dinámicos.</p></div><button className="primary" onClick={exportPdf}>Descargar PDF</button></div>
+          <div className="report-filters">
+            <label>Filtrar por núcleo<select value={reportNucleo} onChange={e=>setReportNucleo(e.target.value)}><option value="todos">Todos los núcleos</option>{nucleos.map(n=><option key={n.id} value={String(n.id)}>{n.nombre}</option>)}</select></label>
+            <label>Filtrar por PNF<select value={reportPnf} onChange={e=>setReportPnf(e.target.value)}><option value="todos">Todos los PNF</option>{programs.map(p=><option key={p}>{p}</option>)}</select></label>
+          </div>
+          <div className="report-kpis">
+            <article className="report-kpi"><span>Registros encontrados</span><strong>{filtered.length}</strong><small>Según los filtros aplicados</small></article>
+            <article className="report-kpi"><span>Total de docentes</span><strong>{totalDoc.toLocaleString('es-VE')}</strong><small>Personal académico registrado</small></article>
+            <article className="report-kpi"><span>Total de estudiantes</span><strong>{totalEst.toLocaleString('es-VE')}</strong><small>Matrícula registrada</small></article>
+            <article className="report-kpi"><span>PNF representados</span><strong>{byPnf.length}</strong><small>Programas con registros</small></article>
+          </div>
+          <div className="report-grid">
+            <article className="report-chart"><h3>Estudiantes por PNF</h3><p className="muted">Comparación de matrícula por programa</p>{byPnf.length ? byPnf.map(x=><div className="bar-row" key={x.name}><div className="bar-label"><span>{x.name.replace('PNF en ','')}</span><b>{x.estudiantes}</b></div><div className="bar-track"><div className="bar-fill" style={{width:(x.estudiantes/maxP*100)+'%'}}/></div><small>{x.docentes} docentes</small></div>) : <p className="empty">No hay datos para estos filtros.</p>}</article>
+            <article className="report-chart"><h3>Estudiantes por núcleo</h3><p className="muted">Núcleos con mayor matrícula</p>{byNucleo.slice(0,10).map(x=><div className="bar-row" key={x.name}><div className="bar-label"><span>{x.name}</span><b>{x.estudiantes}</b></div><div className="bar-track"><div className="bar-fill alt-fill" style={{width:(x.estudiantes/maxN*100)+'%'}}/></div><small>{x.docentes} docentes</small></div>)}{!byNucleo.length&&<p className="empty">No hay datos para estos filtros.</p>}</article>
+          </div>
+          <article className="report-chart report-detail"><h3>Detalle de registros</h3><div className="table-wrap"><table><thead><tr><th>Núcleo</th><th>PNF</th><th>Trayecto</th><th>Período</th><th>Docentes</th><th>Estudiantes</th></tr></thead><tbody>{filtered.map(c=><tr key={c.id}><td>{nucleos.find(n=>n.id===c.nucleo_id)?.nombre||'—'}</td><td>{c.programa}</td><td>{c.trayecto||'—'}</td><td>{c.periodo}</td><td>{c.cantidad_docentes}</td><td>{c.cantidad_estudiantes}</td></tr>)}</tbody></table></div></article>
+        </section>
+      })()}
+      {activeTab === 'registro' && <>
+
       <section className="stats">
         <div className="stat"><span>Núcleos</span><strong>{nucleos.length}</strong></div>
         <div className="stat"><span>Extensiones activas</span><strong>{extensiones.filter(e => e.activa).length}</strong></div>
@@ -179,6 +216,7 @@ export default function App() {
       <section className="panel"><div className="section-title"><div><p className="eyebrow">RESUMEN</p><h2>Capacidad del núcleo</h2></div><span className="pill">{caps.length} registros</span></div>
         {!caps.length ? <p className="empty">No hay registros de capacidad para este núcleo.</p> : <div className="table-wrap"><table><thead><tr><th>Período</th><th>Sede/extensión</th><th>PNF</th><th>Trayecto</th><th>Docentes</th><th>Estudiantes</th><th>Observaciones</th></tr></thead><tbody>{caps.map(c => <tr key={c.id}><td>{c.periodo}</td><td>{extensiones.find(e => e.id === c.extension_id)?.nombre || 'Sede principal'}</td><td>{c.programa || '—'}</td><td>{c.trayecto ? 'Trayecto ' + c.trayecto : '—'}</td><td>{c.cantidad_docentes}</td><td>{c.cantidad_estudiantes}</td><td>{c.observaciones || '—'}</td></tr>)}</tbody></table></div>}
       </section>
+      </>}
       <footer>UNES · Sistema de Capacidad Académica</footer>
     </main>
   </div>
