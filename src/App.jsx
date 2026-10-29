@@ -99,7 +99,7 @@ export default function App() {
       const exts = extensiones.filter(e => e.nucleo_id === n.id)
       const caps = capacidades.filter(c => c.nucleo_id === n.id)
       return [n.nombre, exts.length ? exts.map(e => e.nombre + (e.activa ? ' (activa)' : ' (inactiva)')).join(', ') : 'Sin extensiones',
-        caps.length ? caps.map(c => c.periodo + ' - ' + (c.programa || 'PNF sin indicar') + ' - Trayecto ' + (c.trayecto || 'sin indicar') + ' - ' + (extensiones.find(e => e.id === c.extension_id)?.nombre || 'Sede principal') + ': Docentes ' + c.cantidad_docentes + '; Estudiantes ' + c.cantidad_estudiantes + (c.observaciones ? '; ' + c.observaciones : '')).join('\n') : 'Sin registros']
+        caps.length ? caps.map(c => c.periodo + ' - ' + (c.programa || 'PNF sin indicar') + ' - Trayecto ' + (c.trayecto || 'sin indicar') + ' - ' + (extensiones.find(e => e.id === c.extension_id)?.nombre || 'Sede principal') + ': Docentes ' + c.cantidad_docentes + '; Estudiantes ' + c.cantidad_estudiantes + (c.observaciones ? '; ' + c.observaciones : '')).join('\n') + '\nTOTAL DEL NÚCLEO: Docentes ' + caps.reduce((sum, c) => sum + Number(c.cantidad_docentes || 0), 0) + '; Estudiantes ' + caps.reduce((sum, c) => sum + Number(c.cantidad_estudiantes || 0), 0) : 'Sin registros']
     })
     autoTable(pdf, { startY: 31, head: [['Núcleo', 'Extensiones', 'Capacidad académica']], body: rows,
       styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' }, headStyles: { fillColor: [16,45,79] },
