@@ -16,6 +16,8 @@ export default function App() {
   const [extension, setExtension] = useState('')
   const [periodo, setPeriodo] = useState('')
   const [programa, setPrograma] = useState('')
+  const [trayecto, setTrayecto] = useState('I')
+  const [extensionId, setExtensionId] = useState('')
   const [docentes, setDocentes] = useState('0')
   const [estudiantes, setEstudiantes] = useState('0')
   const [observaciones, setObservaciones] = useState('')
@@ -41,7 +43,7 @@ export default function App() {
     const [n, e, c] = await Promise.all([
       supabase.from('nucleos').select('id,nombre,activo').order('nombre'),
       supabase.from('extensiones').select('id,nucleo_id,nombre,activa').order('nombre'),
-      supabase.from('capacidad_academica').select('id,nucleo_id,periodo,programa,cantidad_docentes,cantidad_estudiantes,observaciones,creado_en').order('creado_en', { ascending: false })
+      supabase.from('capacidad_academica').select('id,nucleo_id,extension_id,periodo,programa,trayecto,cantidad_docentes,cantidad_estudiantes,observaciones,creado_en').order('creado_en', { ascending: false })
     ])
     const problem = n.error || e.error || c.error
     if (problem) setError(problem.message + ' Revisa las tablas y supabase/policies.sql en Supabase.')
@@ -72,16 +74,17 @@ export default function App() {
   }
   async function addCapacity(event) {
     event.preventDefault()
-    if (!nucleoId || !periodo.trim()) { setError('Selecciona un núcleo e indica el período académico.'); return }
+    if (!nucleoId || !periodo.trim() || !programa || !trayecto) { setError('Selecciona el núcleo, PNF, trayecto e indica el período académico.'); return }
     setSaving(true); setError(''); setNotice('')
     const { error } = await supabase.from('capacidad_academica').insert({
-      nucleo_id: Number(nucleoId), periodo: periodo.trim(), programa: programa.trim() || null,
+      nucleo_id: Number(nucleoId), extension_id: extensionId ? Number(extensionId) : null,
+      periodo: periodo.trim(), programa, trayecto,
       cantidad_docentes: Number(docentes), cantidad_estudiantes: Number(estudiantes),
       observaciones: observaciones.trim() || null
     })
     setSaving(false)
     if (error) setError(error.message)
-    else { setPeriodo(''); setPrograma(''); setDocentes('0'); setEstudiantes('0'); setObservaciones(''); setNotice('Capacidad académica guardada.'); await loadData() }
+    else { setPeriodo(''); setPrograma(''); setTrayecto('I'); setExtensionId(''); setDocentes('0'); setEstudiantes('0'); setObservaciones(''); setNotice('Capacidad académica guardada.'); await loadData() }
   }
   async function toggleExtension(item) {
     const { error } = await supabase.from('extensiones').update({ activa: !item.activa }).eq('id', item.id)
@@ -96,7 +99,7 @@ export default function App() {
       const exts = extensiones.filter(e => e.nucleo_id === n.id)
       const caps = capacidades.filter(c => c.nucleo_id === n.id)
       return [n.nombre, exts.length ? exts.map(e => e.nombre + (e.activa ? ' (activa)' : ' (inactiva)')).join(', ') : 'Sin extensiones',
-        caps.length ? caps.map(c => c.periodo + (c.programa ? ' - ' + c.programa : '') + ': Docentes ' + c.cantidad_docentes + '; Estudiantes ' + c.cantidad_estudiantes + (c.observaciones ? '; ' + c.observaciones : '')).join('\n') : 'Sin registros']
+        caps.length ? caps.map(c => c.periodo + ' - ' + (c.programa || 'PNF sin indicar') + ' - Trayecto ' + (c.trayecto || 'sin indicar') + ' - ' + (extensiones.find(e => e.id === c.extension_id)?.nombre || 'Sede principal') + ': Docentes ' + c.cantidad_docentes + '; Estudiantes ' + c.cantidad_estudiantes + (c.observaciones ? '; ' + c.observaciones : '')).join('\n') : 'Sin registros']
     })
     autoTable(pdf, { startY: 31, head: [['Núcleo', 'Extensiones', 'Capacidad académica']], body: rows,
       styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' }, headStyles: { fillColor: [16,45,79] },
@@ -156,8 +159,17 @@ export default function App() {
         </section>
         <section className="panel"><p className="eyebrow">PASO 3</p><h2>Capacidad académica</h2>
           <form className="stack" onSubmit={addCapacity}>
+            <label>Sede o extensión<select value={extensionId} onChange={e => setExtensionId(e.target.value)}><option value="">Sede principal</option>{exts.filter(e => e.activa).map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}</select></label>
             <label>Período académico<input value={periodo} onChange={e => setPeriodo(e.target.value)} placeholder="Ej. 2026-I" required /></label>
-            <label>Programa de formación<input value={programa} onChange={e => setPrograma(e.target.value)} placeholder="Opcional" /></label>
+            <label>Programa Nacional de Formación (PNF)<select value={programa} onChange={e => setPrograma(e.target.value)} required><option value="">Selecciona un PNF</option>
+              <option>PNF en Investigación Penal</option>
+              <option>PNF en Ciencias del Fuego y Seguridad contra Incendios</option>
+              <option>PNF en Protección Civil y Administración de Desastres</option>
+              <option>PNF en Servicio Penitenciario</option>
+              <option>PNF en Prevención y Seguridad Ciudadana</option>
+              <option>PNF en Emergencia Prehospitalaria</option>
+            </select></label>
+            <label>Trayecto<select value={trayecto} onChange={e => setTrayecto(e.target.value)} required><option value="I">Trayecto I</option><option value="II">Trayecto II</option><option value="III">Trayecto III</option><option value="IV">Trayecto IV</option></select></label>
             <div className="numbers"><label>Docentes<input type="number" min="0" step="1" value={docentes} onChange={e => setDocentes(e.target.value)} required /></label><label>Estudiantes<input type="number" min="0" step="1" value={estudiantes} onChange={e => setEstudiantes(e.target.value)} required /></label></div>
             <label>Observaciones<textarea rows="3" value={observaciones} onChange={e => setObservaciones(e.target.value)} placeholder="Opcional" /></label>
             <button className="primary" disabled={saving}>{saving ? 'Guardando…' : 'Guardar capacidad'}</button>
@@ -165,7 +177,7 @@ export default function App() {
         </section>
       </div>
       <section className="panel"><div className="section-title"><div><p className="eyebrow">RESUMEN</p><h2>Capacidad del núcleo</h2></div><span className="pill">{caps.length} registros</span></div>
-        {!caps.length ? <p className="empty">No hay registros de capacidad para este núcleo.</p> : <div className="table-wrap"><table><thead><tr><th>Período</th><th>Programa</th><th>Docentes</th><th>Estudiantes</th><th>Observaciones</th></tr></thead><tbody>{caps.map(c => <tr key={c.id}><td>{c.periodo}</td><td>{c.programa || '—'}</td><td>{c.cantidad_docentes}</td><td>{c.cantidad_estudiantes}</td><td>{c.observaciones || '—'}</td></tr>)}</tbody></table></div>}
+        {!caps.length ? <p className="empty">No hay registros de capacidad para este núcleo.</p> : <div className="table-wrap"><table><thead><tr><th>Período</th><th>Sede/extensión</th><th>PNF</th><th>Trayecto</th><th>Docentes</th><th>Estudiantes</th><th>Observaciones</th></tr></thead><tbody>{caps.map(c => <tr key={c.id}><td>{c.periodo}</td><td>{extensiones.find(e => e.id === c.extension_id)?.nombre || 'Sede principal'}</td><td>{c.programa || '—'}</td><td>{c.trayecto ? 'Trayecto ' + c.trayecto : '—'}</td><td>{c.cantidad_docentes}</td><td>{c.cantidad_estudiantes}</td><td>{c.observaciones || '—'}</td></tr>)}</tbody></table></div>}
       </section>
       <footer>UNES · Sistema de Capacidad Académica</footer>
     </main>
