@@ -139,7 +139,7 @@ export default function App() {
 
   if (loading && !session) return <main className="center"><section className="panel">Cargando…</section></main>
   if (!session) return <main className="center"><section className="panel login">
-    <img className="unes-emblem login-emblem" src="https://www.unes.com.ve/_next/static/media/Logo_Biblioteca_UNES_2.4447d0f6.webp" alt="Logo oficial UNES" onError={e => { e.currentTarget.style.display = 'none' }} />
+    <img className="unes-emblem login-emblem" src="https://www.unes.com.ve/_next/static/media/Unes.ab4c127e.png" alt="Logo oficial UNES" onError={e => { e.currentTarget.style.display = 'none' }} />
     <p className="eyebrow">SISTEMA INSTITUCIONAL</p><h1>Capacidad Académica</h1>
     <div className="auth-switch"><button type="button" className={authMode === 'login' ? 'tab active-tab' : 'tab'} onClick={() => {setAuthMode('login');setError('');setNotice('')}}>Iniciar sesión</button><button type="button" className={authMode === 'signup' ? 'tab active-tab' : 'tab'} onClick={() => {setAuthMode('signup');setError('');setNotice('')}}>Crear cuenta</button></div>
     {authMode === 'login' ? <>
@@ -165,7 +165,7 @@ export default function App() {
   const exts = extensiones.filter(e => String(e.nucleo_id) === String(nucleoId))
   const caps = capacidades.filter(c => String(c.nucleo_id) === String(nucleoId))
   return <div>
-    <header className="topbar"><div className="brand"><img className="unes-emblem top-emblem" src="https://www.unes.com.ve/_next/static/media/Logo_Biblioteca_UNES_2.4447d0f6.webp" alt="Logo UNES" onError={e => { e.currentTarget.style.display = 'none' }} /><div><strong>Capacidad Académica</strong><span>Gestión institucional</span></div></div>
+    <header className="topbar"><div className="brand"><img className="unes-emblem top-emblem" src="https://www.unes.com.ve/_next/static/media/Unes.ab4c127e.png" alt="Logo UNES" onError={e => { e.currentTarget.style.display = 'none' }} /><div><strong>Capacidad Académica</strong><span>Gestión institucional</span></div></div>
       <div className="actions"><span>{session.user.email}</span><button className="secondary" onClick={signOut}>Cerrar sesión</button></div>
     </header>
     <main className="content">
