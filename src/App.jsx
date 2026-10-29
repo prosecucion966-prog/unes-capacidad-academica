@@ -23,6 +23,9 @@ export default function App() {
   const [observaciones, setObservaciones] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [authMode, setAuthMode] = useState('login')
+  const [signupNucleo, setSignupNucleo] = useState('')
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('registro')
   const [reportNucleo, setReportNucleo] = useState('todos')
@@ -40,6 +43,13 @@ export default function App() {
   }, [])
 
   useEffect(() => { if (session) loadData() }, [session])
+
+  useEffect(() => {
+    if (!supabaseConfigured || session) return
+    supabase.from('nucleos').select('id,nombre,activo').order('nombre').then(({ data }) => {
+      if (data) { setNucleos(data); if (!signupNucleo && data.length) setSignupNucleo(String(data[0].id)) }
+    })
+  }, [session])
 
   async function loadData() {
     setLoading(true); setError('')
@@ -61,6 +71,17 @@ export default function App() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) setError(error.message)
     else { setPassword(''); setNotice('Sesión iniciada correctamente.') }
+  }
+  async function signUp(event) {
+    event.preventDefault(); setError(''); setNotice('')
+    if (!fullName.trim() || !signupNucleo) { setError('Escribe tu nombre y selecciona el núcleo que te corresponde.'); return }
+    if (password.length < 8) { setError('La contraseña debe tener al menos 8 caracteres.'); return }
+    setSaving(true)
+    const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: { data: { full_name: fullName.trim(), nucleo_id: signupNucleo } } })
+    setSaving(false)
+    if (error) setError(error.message)
+    else if (data.session) { setPassword(''); setNotice('Cuenta creada. Ya puedes comenzar a registrar información del núcleo seleccionado.') }
+    else { setPassword(''); setNotice('Cuenta creada. Si Supabase solicita confirmar el correo, revisa tu bandeja de entrada. Para acceso inmediato, desactiva la confirmación de correo en la configuración de autenticación de Supabase.') }
   }
   async function signOut() {
     await supabase.auth.signOut()
@@ -118,21 +139,33 @@ export default function App() {
 
   if (loading && !session) return <main className="center"><section className="panel">Cargando…</section></main>
   if (!session) return <main className="center"><section className="panel login">
-    <div className="logo">UNES</div><p className="eyebrow">SISTEMA INSTITUCIONAL</p><h1>Capacidad Académica</h1>
-    <p className="muted">Inicia sesión con una cuenta creada por el administrador en Supabase.</p>
-    <form onSubmit={signIn} className="stack">
-      <label>Correo electrónico<input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="username" /></label>
-      <label>Contraseña<input type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" /></label>
-      <button className="primary">Iniciar sesión</button>
-    </form>
-    <p className="hint">Las cuentas se crean desde Supabase Authentication; no hay registro público.</p>
-    {error && <p className="alert error">{error}</p>}
+    <img className="unes-emblem login-emblem" src="https://www.unes.com.ve/_next/static/media/Logo_Biblioteca_UNES_2.4447d0f6.webp" alt="Logo oficial UNES" onError={e => { e.currentTarget.style.display = 'none' }} />
+    <p className="eyebrow">SISTEMA INSTITUCIONAL</p><h1>Capacidad Académica</h1>
+    <div className="auth-switch"><button type="button" className={authMode === 'login' ? 'tab active-tab' : 'tab'} onClick={() => {setAuthMode('login');setError('');setNotice('')}}>Iniciar sesión</button><button type="button" className={authMode === 'signup' ? 'tab active-tab' : 'tab'} onClick={() => {setAuthMode('signup');setError('');setNotice('')}}>Crear cuenta</button></div>
+    {authMode === 'login' ? <>
+      <p className="muted">Ingresa con tu correo y contraseña.</p>
+      <form onSubmit={signIn} className="stack">
+        <label>Correo electrónico<input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="username" /></label>
+        <label>Contraseña<input type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" /></label>
+        <button className="primary">Iniciar sesión</button>
+      </form>
+    </> : <>
+      <p className="muted">Crea tu cuenta y selecciona el núcleo que tienes asignado. Cada responsable trabaja únicamente con su núcleo.</p>
+      <form onSubmit={signUp} className="stack">
+        <label>Nombre y apellido<input value={fullName} onChange={e => setFullName(e.target.value)} required autoComplete="name" placeholder="Tu nombre completo" /></label>
+        <label>Correo electrónico<input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" /></label>
+        <label>Selecciona tu núcleo<select value={signupNucleo} onChange={e => setSignupNucleo(e.target.value)} required><option value="">Selecciona un núcleo</option>{nucleos.map(n => <option key={n.id} value={String(n.id)}>{n.nombre}</option>)}</select></label>
+        <label>Crear contraseña<input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} autoComplete="new-password" placeholder="Mínimo 8 caracteres" /></label>
+        <button className="primary" disabled={saving}>{saving ? 'Creando cuenta…' : 'Crear cuenta y continuar'}</button>
+      </form>
+    </>}
+    {error && <p className="alert error">{error}</p>}{notice && <p className="alert success">{notice}</p>}
   </section></main>
 
   const exts = extensiones.filter(e => String(e.nucleo_id) === String(nucleoId))
   const caps = capacidades.filter(c => String(c.nucleo_id) === String(nucleoId))
   return <div>
-    <header className="topbar"><div className="brand"><div className="logo small">UNES</div><div><strong>Capacidad Académica</strong><span>Gestión institucional</span></div></div>
+    <header className="topbar"><div className="brand"><img className="unes-emblem top-emblem" src="https://www.unes.com.ve/_next/static/media/Logo_Biblioteca_UNES_2.4447d0f6.webp" alt="Logo UNES" onError={e => { e.currentTarget.style.display = 'none' }} /><div><strong>Capacidad Académica</strong><span>Gestión institucional</span></div></div>
       <div className="actions"><span>{session.user.email}</span><button className="secondary" onClick={signOut}>Cerrar sesión</button></div>
     </header>
     <main className="content">
