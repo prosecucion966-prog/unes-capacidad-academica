@@ -30,6 +30,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('registro')
   const [reportNucleo, setReportNucleo] = useState('todos')
   const [reportPnf, setReportPnf] = useState('todos')
+  const [selectedEstado, setSelectedEstado] = useState('Distrito Capital')
+  const estadosVenezuela = ['Zulia','Falcón','Lara','Yaracuy','Carabobo','Aragua','Distrito Capital','La Guaira','Miranda','Anzoátegui','Sucre','Nueva Esparta','Trujillo','Portuguesa','Cojedes','Guárico','Monagas','Mérida','Barinas','Apure','Táchira','Amazonas','Bolívar','Delta Amacuro']
+  const estadoTiles = [['Zulia',1,2],['Falcón',2,2],['Lara',3,3],['Yaracuy',4,3],['Carabobo',5,3],['Aragua',6,3],['Distrito Capital',7,3],['La Guaira',8,2],['Miranda',8,3],['Anzoátegui',9,3],['Sucre',10,3],['Nueva Esparta',10,2],['Trujillo',3,4],['Portuguesa',4,4],['Cojedes',5,4],['Guárico',6,4],['Monagas',9,4],['Mérida',2,5],['Barinas',4,5],['Apure',5,5],['Táchira',2,6],['Amazonas',5,7],['Bolívar',7,5],['Delta Amacuro',10,5]]
+  const isAdmin = String(session?.user?.email || '').toLowerCase() === 'bancodepreguntasunes@gmail.com'
   const pnfOptions = ['PNF en Investigación Penal', 'PNF en Ciencias del Fuego y Seguridad contra Incendios', 'PNF en Protección Civil y Administración de Desastres', 'PNF en Servicio Penitenciario', 'PNF en Prevención y Seguridad Ciudadana', 'PNF en Emergencia Prehospitalaria']
   const normalizePnf = value => String(value || '').trim().replace(/\\s+/g, ' ').toLocaleLowerCase('es')
 
@@ -48,7 +52,7 @@ export default function App() {
 
   useEffect(() => {
     if (!supabaseConfigured || session) return
-    supabase.from('nucleos').select('id,nombre,activo').order('nombre').then(({ data, error }) => {
+    supabase.from('nucleos').select('id,nombre,activo,estado').order('nombre').then(({ data, error }) => {
       if (error) { setError('No se pudo cargar la lista de núcleos: ' + error.message); return }
       if (data) { setNucleos(data); if (!signupNucleo && data.length) setSignupNucleo(String(data[0].id)) }
     })
@@ -57,7 +61,7 @@ export default function App() {
   async function loadData() {
     setLoading(true); setError('')
     const [n, e, c] = await Promise.all([
-      supabase.from('nucleos').select('id,nombre,activo').order('nombre'),
+      supabase.from('nucleos').select('id,nombre,activo,estado').order('nombre'),
       supabase.from('extensiones').select('id,nucleo_id,nombre,activa').order('nombre'),
       supabase.from('capacidad_academica').select('id,nucleo_id,extension_id,periodo,programa,trayecto,cantidad_docentes,cantidad_estudiantes,observaciones,creado_en').order('creado_en', { ascending: false })
     ])
@@ -112,6 +116,12 @@ export default function App() {
     setSaving(false)
     if (error) setError(error.message)
     else { setPeriodo(''); setPrograma(''); setTrayecto('I'); setExtensionId(''); setDocentes('0'); setEstudiantes('0'); setObservaciones(''); setNotice('Capacidad académica guardada.'); await loadData() }
+  }
+  async function saveNucleoEstado(item, estado) {
+    setError(''); setNotice('')
+    const { error } = await supabase.from('nucleos').update({ estado: estado || null }).eq('id', item.id)
+    if (error) setError('No se pudo guardar el estado del núcleo. Ejecuta la migración del mapa en Supabase. Detalle: ' + error.message)
+    else { setNotice('Estado actualizado para ' + item.nombre + '.'); await loadData() }
   }
   async function toggleExtension(item) {
     const { error } = await supabase.from('extensiones').update({ activa: !item.activa }).eq('id', item.id)
@@ -177,7 +187,39 @@ export default function App() {
       <nav className="report-tabs">
         <button className={activeTab === 'registro' ? 'tab active-tab' : 'tab'} onClick={() => setActiveTab('registro')}>Registro académico</button>
         <button className={activeTab === 'reportes' ? 'tab active-tab' : 'tab'} onClick={() => setActiveTab('reportes')}>📊 Reportes y estadísticas</button>
+        <button className={activeTab === 'mapa' ? 'tab active-tab' : 'tab'} onClick={() => setActiveTab('mapa')}>🗺️ Mapa de Venezuela</button>
       </nav>
+      {activeTab === 'mapa' && (() => {
+        const nucleosEstado = nucleos.filter(n => String(n.estado || '').toLocaleLowerCase('es') === selectedEstado.toLocaleLowerCase('es'))
+        const idsEstado = new Set(nucleosEstado.map(n => String(n.id)))
+        const capsEstado = capacidades.filter(c => idsEstado.has(String(c.nucleo_id)))
+        const totalDocEstado = capsEstado.reduce((a,c) => a + Number(c.cantidad_docentes || 0), 0)
+        const totalEstEstado = capsEstado.reduce((a,c) => a + Number(c.cantidad_estudiantes || 0), 0)
+        const countFor = estado => nucleos.filter(n => String(n.estado || '').toLocaleLowerCase('es') === estado.toLocaleLowerCase('es')).length
+        return <section className="map-area">
+          <div className="report-heading"><div><p className="eyebrow">VISTA TERRITORIAL</p><h2>Capacidad académica por estado</h2><p className="muted">Selecciona una región para consultar sus núcleos, extensiones y matrícula.</p></div></div>
+          <div className="map-layout">
+            <article className="report-chart map-visual">
+              <div className="map-title"><div><h3>Mapa esquemático de Venezuela</h3><p className="muted">Selecciona un estado para ver sus indicadores.</p></div><span className="pill">{nucleos.filter(n=>n.estado).length} núcleos ubicados</span></div>
+              <div className="venezuela-cartogram" role="group" aria-label="Estados de Venezuela">
+                {estadoTiles.map(([estado,col,row]) => <button key={estado} type="button" className={'state-tile ' + (selectedEstado === estado ? 'state-selected' : '') + (countFor(estado) ? ' state-has-data' : '')} style={{gridColumn:col,gridRow:row}} onClick={() => setSelectedEstado(estado)} title={estado + ': ' + countFor(estado) + ' núcleos'}>
+                  <span>{estado}</span><b>{countFor(estado)}</b>
+                </button>)}
+              </div>
+              <p className="map-note">Esquema interactivo por estado, no a escala geográfica. Los números indican cuántos núcleos tienen un estado asignado.</p>
+              <label>Seleccionar estado<select value={selectedEstado} onChange={e=>setSelectedEstado(e.target.value)}>{estadosVenezuela.map(estado=><option key={estado}>{estado}</option>)}</select></label>
+            </article>
+            <article className="report-chart state-summary">
+              <p className="eyebrow">ESTADO SELECCIONADO</p><h2>{selectedEstado}</h2>
+              <div className="state-kpis"><div><span>Núcleos</span><strong>{nucleosEstado.length}</strong></div><div><span>Registros</span><strong>{capsEstado.length}</strong></div><div><span>Docentes</span><strong>{totalDocEstado.toLocaleString('es-VE')}</strong></div><div><span>Estudiantes</span><strong>{totalEstEstado.toLocaleString('es-VE')}</strong></div></div>
+              {!nucleosEstado.length ? <p className="empty">Todavía no hay núcleos asignados a este estado. {isAdmin ? 'Usa el panel de asignación que aparece abajo.' : 'El administrador debe asignar el estado a cada núcleo.'}</p> :
+                <div className="state-nucleus-list">{nucleosEstado.map(n=>{const nc=capacidades.filter(c=>String(c.nucleo_id)===String(n.id));const ne=extensiones.filter(e=>String(e.nucleo_id)===String(n.id));return <div className="state-nucleus" key={n.id}><div><strong>{n.nombre}</strong><small>{ne.length} extensiones · {nc.length} registros de capacidad</small></div><div className="state-nucleus-metrics"><span>{nc.reduce((a,c)=>a+Number(c.cantidad_docentes||0),0)} docentes</span><span>{nc.reduce((a,c)=>a+Number(c.cantidad_estudiantes||0),0)} estudiantes</span></div></div>})}</div>}
+            </article>
+          </div>
+          {isAdmin && <article className="report-chart state-admin"><h3>Asignar estado a cada núcleo</h3><p className="muted">Selecciona el estado correspondiente. Estos cambios no alteran los registros académicos.</p><div className="state-assignment-list">{nucleos.map(n=><label key={n.id}>{n.nombre}<select value={n.estado || ''} onChange={e=>saveNucleoEstado(n,e.target.value)}><option value="">Sin asignar</option>{estadosVenezuela.map(estado=><option key={estado}>{estado}</option>)}</select></label>)}</div></article>}
+          <article className="report-chart report-detail"><h3>Registros académicos de {selectedEstado}</h3><div className="table-wrap"><table><thead><tr><th>Núcleo</th><th>PNF</th><th>Trayecto</th><th>Período</th><th>Docentes</th><th>Estudiantes</th></tr></thead><tbody>{capsEstado.map(c=><tr key={c.id}><td>{nucleos.find(n=>String(n.id)===String(c.nucleo_id))?.nombre||'—'}</td><td>{c.programa}</td><td>{c.trayecto||'—'}</td><td>{c.periodo}</td><td>{c.cantidad_docentes}</td><td>{c.cantidad_estudiantes}</td></tr>)}{!capsEstado.length&&<tr><td colSpan="6">No hay registros para este estado.</td></tr>}</tbody></table></div></article>
+        </section>
+      })()}
       {activeTab === 'reportes' && (() => {
         const filtered = capacidades.filter(c => (reportNucleo === 'todos' || String(c.nucleo_id) === reportNucleo) && (reportPnf === 'todos' || normalizePnf(c.programa) === normalizePnf(reportPnf)))
         const totalDoc = filtered.reduce((a,c) => a + Number(c.cantidad_docentes || 0), 0)
