@@ -340,8 +340,8 @@ export default function App() {
             {visibles.filter(a=>reportNucleo==='todos'||String(a.nucleo_id)===reportNucleo).map(a=><tr key={a.id}><td>{nucleoNombre(a.nucleo_id)}</td><td>{a.apellidos}, {a.nombres}</td><td>{a.cedula}</td><td>{a.pnf}</td><td>{a.semana||'—'}</td><td>{a.prueba_medica_estado}</td><td>{a.prueba_psicologica_estado}</td><td>{a.prueba_fisica_estado}</td><td><strong>{a.estado_general}</strong></td></tr>)}
             {!visibles.length&&<tr><td colSpan="9">Todavía no hay aspirantes cargados. Primero ejecuta la migración de admisión en Supabase.</td></tr>}
           </tbody></table></div>
-          <div className="report-heading"><div><h3>Demanda frente a capacidad</h3><p className="muted">La comparación por núcleo se completará al importar el padrón y cargar el inventario de aulas y sus asignaciones.</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>Núcleo</th><th>Aspirantes</th><th>Matrícula registrada</th><th>Puestos en aulas activas</th><th>Disponibilidad</th></tr></thead><tbody>
+          <div className="report-heading"><div><h3>Demanda frente a capacidad</h3><p className="muted">Comparación inicial: los puestos de aulas se muestran una sola vez. La diferencia es referencial; los cupos efectivos deben validarse por turno y horario para no contar un aula varias veces.</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>Núcleo</th><th>Aspirantes</th><th>Matrícula registrada</th><th>Puestos en aulas activas</th><th>Diferencia referencial</th></tr></thead><tbody>
             {nucleos.filter(n=>isAdmin||String(n.id)===String(nucleoId)).map(n=>{
               const total=aspirantes.filter(a=>String(a.nucleo_id)===String(n.id)).length
               const matricula=capacidades.filter(c=>String(c.nucleo_id)===String(n.id)).reduce((v,c)=>v+Number(c.cantidad_estudiantes||0),0)
