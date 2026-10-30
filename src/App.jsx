@@ -100,20 +100,24 @@ export default function App() {
 
   async function loadAllAspirantes() {
     const pageSize = 1000
-    let from = 0
-    let rows = []
-    while (true) {
-      const { data, error } = await supabase.from('aspirantes_admision')
-        .select('id,nucleo_id,extension_id,nucleo_origen_pdf,apellidos,nombres,cedula,genero,pnf,proceso,semana,prueba_medica_estado,prueba_psicologica_estado,prueba_fisica_estado,estado_general')
-        .order('apellidos').range(from, from + pageSize - 1)
-      if (error) return { data: null, error }
-      rows = rows.concat(data || [])
-      if (!data || data.length < pageSize) break
-      from += pageSize
+    const columns = 'id,nucleo_id,extension_id,nucleo_origen_pdf,apellidos,nombres,cedula,genero,pnf,proceso,semana,prueba_medica_estado,prueba_psicologica_estado,prueba_fisica_estado,estado_general'
+    const first = await supabase.from('aspirantes_admision').select(columns, { count: 'exact' }).order('id', { ascending: true }).range(0, pageSize - 1)
+    if (first.error) return { data: null, error: first.error }
+    const total = first.count ?? (first.data || []).length
+    const rows = [...(first.data || [])]
+    const offsets = []
+    for (let from = pageSize; from < total; from += pageSize) offsets.push(from)
+    const batchSize = 6
+    for (let i = 0; i < offsets.length; i += batchSize) {
+      const batch = await Promise.all(offsets.slice(i, i + batchSize).map(from =>
+        supabase.from('aspirantes_admision').select(columns).order('id', { ascending: true }).range(from, from + pageSize - 1)
+      ))
+      const failed = batch.find(result => result.error)
+      if (failed) return { data: null, error: failed.error }
+      batch.forEach(result => rows.push(...(result.data || [])))
     }
     return { data: rows, error: null }
   }
-
   async function loadData() {
     setLoading(true); setError('')
     const [n, e, c, a, aa, ad] = await Promise.all([
