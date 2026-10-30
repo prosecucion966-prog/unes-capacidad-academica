@@ -151,12 +151,11 @@ export default function App() {
       nucleo_id: Number(nucleoId), extension_id: extensionId ? Number(extensionId) : null,
       periodo: periodo.trim(), programa, trayecto,
       cantidad_docentes: Number(docentes), cantidad_estudiantes: Number(estudiantes),
-      cantidad_aulas: Number(cantidadAulas), capacidad_por_aula: Number(capacidadPorAula),
       observaciones: observaciones.trim() || null
     })
     setSaving(false)
     if (error) setError(error.message)
-    else { setPeriodo(''); setPrograma(''); setTrayecto('I'); setExtensionId(''); setDocentes('0'); setEstudiantes('0'); setCantidadAulas('0'); setCapacidadPorAula('0'); setObservaciones(''); setNotice('Capacidad académica guardada.'); await loadData() }
+    else { setPeriodo(''); setPrograma(''); setTrayecto('I'); setExtensionId(''); setDocentes('0'); setEstudiantes('0'); setObservaciones(''); setNotice('Capacidad académica guardada.'); await loadData() }
   }
   async function addAula(event) {
     event.preventDefault()
@@ -198,7 +197,7 @@ export default function App() {
       const exts = extensiones.filter(e => e.nucleo_id === n.id)
       const caps = capacidades.filter(c => c.nucleo_id === n.id)
       return [n.nombre, exts.length ? exts.map(e => e.nombre + (e.activa ? ' (activa)' : ' (inactiva)')).join(', ') : 'Sin extensiones',
-        caps.length ? caps.map(c => c.periodo + ' - ' + (c.programa || 'PNF sin indicar') + ' - Trayecto ' + (c.trayecto || 'sin indicar') + ' - ' + (extensiones.find(e => e.id === c.extension_id)?.nombre || 'Sede principal') + ': Docentes ' + c.cantidad_docentes + '; Estudiantes ' + c.cantidad_estudiantes + '; Aulas ' + (c.cantidad_aulas ?? 0) + '; Capacidad por aula ' + (c.capacidad_por_aula ?? 0) + '; Capacidad total de aulas ' + (Number(c.cantidad_aulas || 0) * Number(c.capacidad_por_aula || 0)) + (c.observaciones ? '; ' + c.observaciones : '')).join('\n') + '\nTOTAL DEL NÚCLEO: Docentes ' + caps.reduce((sum, c) => sum + Number(c.cantidad_docentes || 0), 0) + '; Estudiantes ' + caps.reduce((sum, c) => sum + Number(c.cantidad_estudiantes || 0), 0) : 'Sin registros']
+        caps.length ? caps.map(c => c.periodo + ' - ' + (c.programa || 'PNF sin indicar') + ' - Trayecto ' + (c.trayecto || 'sin indicar') + ' - ' + (extensiones.find(e => e.id === c.extension_id)?.nombre || 'Sede principal') + ': Docentes ' + c.cantidad_docentes + '; Estudiantes ' + c.cantidad_estudiantes + ' + (c.observaciones ? '; ' + c.observaciones : '')).join('\n') + '\nTOTAL DEL NÚCLEO: Docentes ' + caps.reduce((sum, c) => sum + Number(c.cantidad_docentes || 0), 0) + '; Estudiantes ' + caps.reduce((sum, c) => sum + Number(c.cantidad_estudiantes || 0), 0) : 'Sin registros']
     })
     autoTable(pdf, { startY: 31, head: [['Núcleo', 'Extensiones', 'Capacidad académica']], body: rows,
       styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' }, headStyles: { fillColor: [16,45,79] },
@@ -309,7 +308,7 @@ export default function App() {
             <article className="report-chart"><h3>Aulas por PNF</h3><p className="muted">Cantidad de aulas y capacidad física registrada por programa</p>{byPnf.length ? byPnf.map(x=><div className="bar-row" key={x.name}><div className="bar-label"><span>{x.name.replace('PNF en ','')}</span><b>{x.aulas} aulas</b></div><div className="bar-track"><div className="bar-fill" style={{width:(x.aulas/Math.max(1,...byPnf.map(p=>p.aulas))*100)+'%'}}/></div><small>Capacidad total: {x.capacidadAulas.toLocaleString('es-VE')} estudiantes</small></div>) : <p className="empty">No hay datos de aulas para estos filtros.</p>}</article>
             <article className="report-chart"><h3>Estudiantes por núcleo</h3><p className="muted">Núcleos con mayor matrícula</p>{byNucleo.slice(0,10).map(x=><div className="bar-row" key={x.name}><div className="bar-label"><span>{x.name}</span><b>{x.estudiantes}</b></div><div className="bar-track"><div className="bar-fill alt-fill" style={{width:(x.estudiantes/maxN*100)+'%'}}/></div><small>{x.docentes} docentes</small></div>)}{!byNucleo.length&&<p className="empty">No hay datos para estos filtros.</p>}</article>
           </div>
-          <article className="report-chart report-detail"><h3>Detalle de registros</h3><div className="table-wrap"><table><thead><tr><th>Núcleo</th><th>PNF</th><th>Trayecto</th><th>Período</th><th>Docentes</th><th>Estudiantes</th><th>Aulas</th><th>Capacidad/aula</th><th>Capacidad total</th></tr></thead><tbody>{filtered.map(c=><tr key={c.id}><td>{nucleos.find(n=>n.id===c.nucleo_id)?.nombre||'—'}</td><td>{c.programa}</td><td>{c.trayecto||'—'}</td><td>{c.periodo}</td><td>{c.cantidad_docentes}</td><td>{c.cantidad_estudiantes}</td><td>{c.cantidad_aulas ?? 0}</td><td>{c.capacidad_por_aula ?? 0}</td><td>{Number(c.cantidad_aulas || 0) * Number(c.capacidad_por_aula || 0)}</td></tr>)}</tbody></table></div></article>
+          <article className="report-chart report-detail"><h3>Detalle de registros</h3><div className="table-wrap"><table><thead><tr><th>Núcleo</th><th>PNF</th><th>Trayecto</th><th>Período</th><th>Docentes</th><th>Estudiantes</th></tr></thead><tbody>{filtered.map(c=><tr key={c.id}><td>{nucleos.find(n=>n.id===c.nucleo_id)?.nombre||'—'}</td><td>{c.programa}</td><td>{c.trayecto||'—'}</td><td>{c.periodo}</td><td>{c.cantidad_docentes}</td><td>{c.cantidad_estudiantes}</td></tr>)}</tbody></table></div></article>
         </section>
       })()}
       {activeTab === 'registro' && <>
@@ -350,15 +349,13 @@ export default function App() {
             </select></label>
             <label>Trayecto<select value={trayecto} onChange={e => setTrayecto(e.target.value)} required><option value="I">Trayecto I</option><option value="II">Trayecto II</option><option value="III">Trayecto III</option><option value="IV">Trayecto IV</option></select></label>
             <div className="numbers"><label>Docentes<input type="number" min="0" step="1" value={docentes} onChange={e => setDocentes(e.target.value)} required /></label><label>Estudiantes<input type="number" min="0" step="1" value={estudiantes} onChange={e => setEstudiantes(e.target.value)} required /></label></div>
-            <div className="numbers"><label>Cantidad de aulas para este PNF<input type="number" min="0" step="1" value={cantidadAulas} onChange={e => setCantidadAulas(e.target.value)} required /></label><label>Capacidad de cada aula (estudiantes)<input type="number" min="0" step="1" value={capacidadPorAula} onChange={e => setCapacidadPorAula(e.target.value)} required /></label></div>
-            <p className="hint">Capacidad total de aulas para este PNF, sede y trayecto: <strong>{(Number(cantidadAulas || 0) * Number(capacidadPorAula || 0)).toLocaleString('es-VE')} estudiantes</strong></p>
             <label>Observaciones<textarea rows="3" value={observaciones} onChange={e => setObservaciones(e.target.value)} placeholder="Opcional" /></label>
             <button className="primary" disabled={saving}>{saving ? 'Guardando…' : 'Guardar capacidad'}</button>
           </form>
         </section>
       </div>
       <section className="panel"><div className="section-title"><div><p className="eyebrow">RESUMEN</p><h2>Capacidad del núcleo</h2></div><span className="pill">{caps.length} registros</span></div>
-        {!caps.length ? <p className="empty">No hay registros de capacidad para este núcleo.</p> : <div className="table-wrap"><table><thead><tr><th>Período</th><th>Sede/extensión</th><th>PNF</th><th>Trayecto</th><th>Docentes</th><th>Estudiantes</th><th>Aulas del PNF</th><th>Capacidad por aula</th><th>Capacidad total</th><th>Observaciones</th></tr></thead><tbody>{caps.map(c => <tr key={c.id}><td>{c.periodo}</td><td>{extensiones.find(e => e.id === c.extension_id)?.nombre || 'Sede principal'}</td><td>{c.programa || '—'}</td><td>{c.trayecto ? 'Trayecto ' + c.trayecto : '—'}</td><td>{c.cantidad_docentes}</td><td>{c.cantidad_estudiantes}</td><td>{c.cantidad_aulas ?? 0}</td><td>{c.capacidad_por_aula ?? 0}</td><td>{Number(c.cantidad_aulas || 0) * Number(c.capacidad_por_aula || 0)}</td><td>{c.observaciones || '—'}</td></tr>)}</tbody></table></div>}
+        {!caps.length ? <p className="empty">No hay registros de capacidad para este núcleo.</p> : <div className="table-wrap"><table><thead><tr><th>Período</th><th>Sede/extensión</th><th>PNF</th><th>Trayecto</th><th>Docentes</th><th>Estudiantes</th><th>Observaciones</th></tr></thead><tbody>{caps.map(c => <tr key={c.id}><td>{c.periodo}</td><td>{extensiones.find(e => e.id === c.extension_id)?.nombre || 'Sede principal'}</td><td>{c.programa || '—'}</td><td>{c.trayecto ? 'Trayecto ' + c.trayecto : '—'}</td><td>{c.cantidad_docentes}</td><td>{c.cantidad_estudiantes}</td><td>{c.observaciones || '—'}</td></tr>)}</tbody></table></div>}
       </section>
       </>}
       {activeTab === 'registro' && <section className="panel room-inventory">
