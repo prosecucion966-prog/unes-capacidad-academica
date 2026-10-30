@@ -98,6 +98,22 @@ export default function App() {
     })
   }, [session])
 
+  async function loadAllAspirantes() {
+    const pageSize = 1000
+    let from = 0
+    let rows = []
+    while (true) {
+      const { data, error } = await supabase.from('aspirantes_admision')
+        .select('id,nucleo_id,extension_id,nucleo_origen_pdf,apellidos,nombres,cedula,genero,pnf,proceso,semana,prueba_medica_estado,prueba_psicologica_estado,prueba_fisica_estado,estado_general')
+        .order('apellidos').range(from, from + pageSize - 1)
+      if (error) return { data: null, error }
+      rows = rows.concat(data || [])
+      if (!data || data.length < pageSize) break
+      from += pageSize
+    }
+    return { data: rows, error: null }
+  }
+
   async function loadData() {
     setLoading(true); setError('')
     const [n, e, c, a, aa, ad] = await Promise.all([
@@ -106,7 +122,7 @@ export default function App() {
       supabase.from('capacidad_academica').select('id,nucleo_id,extension_id,periodo,programa,trayecto,cantidad_docentes,cantidad_estudiantes,cantidad_aulas,capacidad_por_aula,observaciones,creado_en').order('creado_en', { ascending: false }),
       supabase.from('aulas').select('id,nucleo_id,extension_id,nombre,capacidad_puestos,observaciones,activa').order('nombre'),
       supabase.from('asignaciones_aulas').select('id,nucleo_id,aula_id,capacidad_academica_id,turno,hora_inicio,hora_fin,dias,seccion,estudiantes_asignados').order('creado_en', { ascending: false }),
-      supabase.from('aspirantes_admision').select('id,nucleo_id,extension_id,nucleo_origen_pdf,apellidos,nombres,cedula,genero,pnf,proceso,semana,prueba_medica_estado,prueba_psicologica_estado,prueba_fisica_estado,estado_general').order('apellidos')
+      loadAllAspirantes()
     ])
     const problem = n.error || e.error || c.error || a.error || aa.error || (ad.error && !String(ad.error.message || '').includes('aspirantes_admision'))
     if (problem) setError(problem.message + ' Revisa las tablas y supabase/policies.sql en Supabase.')
