@@ -38,13 +38,7 @@ create table if not exists public.aspirantes_admision (
   constraint aspirantes_nombres_no_vacios check (
     length(trim(apellidos)) > 0 and length(trim(nombres)) > 0
   ),
-  constraint aspirantes_cedula_no_vacia check (length(trim(cedula)) > 0),
-  constraint aspirantes_extension_pertenece check (
-    extension_id is null or exists (
-      select 1 from public.extensiones e
-      where e.id = extension_id and e.nucleo_id = aspirantes_admision.nucleo_id
-    )
-  )
+  constraint aspirantes_cedula_no_vacia check (length(trim(cedula)) > 0)
 );
 
 create index if not exists aspirantes_nucleo_idx
