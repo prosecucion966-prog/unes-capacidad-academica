@@ -17,6 +17,7 @@ export default function App() {
   const [aspirantes, setAspirantes] = useState([])
   const [aspirantesLoaded, setAspirantesLoaded] = useState(false)
   const [loadingAspirantes, setLoadingAspirantes] = useState(false)
+  const [paginaAspirantes, setPaginaAspirantes] = useState(0)
   const [busquedaAspirante, setBusquedaAspirante] = useState('')
   const [filtroAspirantePnf, setFiltroAspirantePnf] = useState('todos')
   const [aulaNombre, setAulaNombre] = useState('')
@@ -103,7 +104,7 @@ export default function App() {
       setLoadingAspirantes(false)
     })
     return () => { cancelled = true }
-  }, [session, activeTab, aspirantesLoaded, loadingAspirantes])
+  }, [session, activeTab, aspirantesLoaded])
 
 
   useEffect(() => {
@@ -355,6 +356,11 @@ export default function App() {
         const aprobados = visibles.filter(a => a.estado_general === 'Aprobado para ingresar').length
         const rechazados = visibles.filter(a => a.estado_general === 'No aprobado').length
         const evaluacion = visibles.length - aprobados - rechazados
+        const listaTabla = visibles.filter(a=>reportNucleo==='todos'||String(a.nucleo_id)===reportNucleo)
+        const tamanoPagina = 50
+        const totalPaginas = Math.max(1, Math.ceil(listaTabla.length / tamanoPagina))
+        const paginaSegura = Math.min(paginaAspirantes, totalPaginas - 1)
+        const aspirantesPagina = listaTabla.slice(paginaSegura * tamanoPagina, (paginaSegura + 1) * tamanoPagina)
         const nucleoNombre = id => nucleos.find(n => String(n.id) === String(id))?.nombre || 'Núcleo sin asignar'
         return <section className="report-section">
           <div className="report-heading"><div><p className="eyebrow">PROCESO ENERO I-2027</p><h2>Admisión de aspirantes</h2><p className="muted">Listado individual, seguimiento de pruebas y comparación de demanda con capacidad instalada.</p></div></div>
@@ -373,15 +379,16 @@ export default function App() {
             </article>
           </div>
           <div className="filters-row">
-            <label>Buscar aspirante<input value={busquedaAspirante} onChange={e=>setBusquedaAspirante(e.target.value)} placeholder="Nombre, apellido o cédula" /></label>
-            <label>PNF<select value={filtroAspirantePnf} onChange={e=>setFiltroAspirantePnf(e.target.value)}><option value="todos">Todos los PNF</option>{pnfOptions.map(p=><option key={p} value={p}>{p}</option>)}</select></label>
-            {isAdmin && <label>Núcleo<select value={reportNucleo} onChange={e=>setReportNucleo(e.target.value)}><option value="todos">Todos los núcleos</option>{nucleos.map(n=><option key={n.id} value={String(n.id)}>{n.nombre}</option>)}</select></label>}
+            <label>Buscar aspirante<input value={busquedaAspirante} onChange={e=>{setBusquedaAspirante(e.target.value);setPaginaAspirantes(0)}} placeholder="Nombre, apellido o cédula" /></label>
+            <label>PNF<select value={filtroAspirantePnf} onChange={e=>{setFiltroAspirantePnf(e.target.value);setPaginaAspirantes(0)}}><option value="todos">Todos los PNF</option>{pnfOptions.map(p=><option key={p} value={p}>{p}</option>)}</select></label>
+            {isAdmin && <label>Núcleo<select value={reportNucleo} onChange={e=>{setReportNucleo(e.target.value);setPaginaAspirantes(0)}}><option value="todos">Todos los núcleos</option>{nucleos.map(n=><option key={n.id} value={String(n.id)}>{n.nombre}</option>)}</select></label>}
           </div>
           <p className="muted">Los resultados médicos, psicológicos y físicos se muestran solo como estados. No se guardan diagnósticos ni informes clínicos.</p>
           <div className="table-wrap"><table><thead><tr><th>Núcleo</th><th>Aspirante</th><th>Cédula</th><th>PNF</th><th>Semana</th><th>Médica</th><th>Psicológica</th><th>Física</th><th>Resultado</th></tr></thead><tbody>
-            {visibles.filter(a=>reportNucleo==='todos'||String(a.nucleo_id)===reportNucleo).map(a=><tr key={a.id}><td>{nucleoNombre(a.nucleo_id)}</td><td>{a.apellidos}, {a.nombres}</td><td>{a.cedula}</td><td>{a.pnf}</td><td>{a.semana||'—'}</td><td>{a.prueba_medica_estado}</td><td>{a.prueba_psicologica_estado}</td><td>{a.prueba_fisica_estado}</td><td><strong>{a.estado_general}</strong></td></tr>)}
-            {!visibles.length&&<tr><td colSpan="9">Todavía no hay aspirantes cargados. Primero ejecuta la migración de admisión en Supabase.</td></tr>}
+            {aspirantesPagina.map(a=><tr key={a.id}><td>{nucleoNombre(a.nucleo_id)}</td><td>{a.apellidos}, {a.nombres}</td><td>{a.cedula}</td><td>{a.pnf}</td><td>{a.semana||'—'}</td><td>{a.prueba_medica_estado}</td><td>{a.prueba_psicologica_estado}</td><td>{a.prueba_fisica_estado}</td><td><strong>{a.estado_general}</strong></td></tr>)}
+            {!listaTabla.length&&<tr><td colSpan="9">No hay aspirantes que coincidan con los filtros.</td></tr>}
           </tbody></table></div>
+          <div className="export-actions"><span className="muted">Mostrando {listaTabla.length ? paginaSegura * tamanoPagina + 1 : 0}–{Math.min((paginaSegura + 1) * tamanoPagina, listaTabla.length)} de {listaTabla.length.toLocaleString('es-VE')} aspirantes</span><button className="secondary" disabled={paginaSegura===0} onClick={()=>setPaginaAspirantes(p=>Math.max(0,p-1))}>Anterior</button><button className="secondary" disabled={paginaSegura>=totalPaginas-1} onClick={()=>setPaginaAspirantes(p=>Math.min(totalPaginas-1,p+1))}>Siguiente</button></div>
           <div className="report-heading"><div><h3>Demanda frente a capacidad</h3><p className="muted">Comparación inicial: los puestos de aulas se muestran una sola vez. La diferencia es referencial; los cupos efectivos deben validarse por turno y horario para no contar un aula varias veces.</p></div></div>
           <div className="table-wrap"><table><thead><tr><th>Núcleo</th><th>Aspirantes</th><th>Matrícula registrada</th><th>Puestos en aulas activas</th><th>Diferencia referencial</th></tr></thead><tbody>
             {nucleos.filter(n=>isAdmin||String(n.id)===String(nucleoId)).map(n=>{
