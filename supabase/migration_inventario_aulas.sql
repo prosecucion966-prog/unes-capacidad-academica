@@ -50,7 +50,14 @@ using (public.es_admin_unes() or nucleo_id::text = public.mi_nucleo_unes());
 drop policy if exists "responsables agregan aulas de su nucleo" on public.aulas;
 create policy "responsables agregan aulas de su nucleo" on public.aulas
 for insert to authenticated
-with check (public.es_admin_unes() or nucleo_id::text = public.mi_nucleo_unes());
+with check (
+  public.es_admin_unes() or
+  (nucleo_id::text = public.mi_nucleo_unes()
+   and (extension_id is null or exists (
+     select 1 from public.extensiones e
+     where e.id = extension_id and e.nucleo_id = aulas.nucleo_id
+   )))
+);
 
 drop policy if exists "admin gestiona aulas" on public.aulas;
 create policy "admin gestiona aulas" on public.aulas
