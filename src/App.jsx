@@ -11,6 +11,20 @@ export default function App() {
   const [nucleos, setNucleos] = useState([])
   const [extensiones, setExtensiones] = useState([])
   const [capacidades, setCapacidades] = useState([])
+  const [aulas, setAulas] = useState([])
+  const [asignacionesAulas, setAsignacionesAulas] = useState([])
+  const [aulaNombre, setAulaNombre] = useState('')
+  const [aulaCapacidad, setAulaCapacidad] = useState('')
+  const [aulaExtensionId, setAulaExtensionId] = useState('')
+  const [aulaObservaciones, setAulaObservaciones] = useState('')
+  const [asignacionAulaId, setAsignacionAulaId] = useState('')
+  const [asignacionCapacidadId, setAsignacionCapacidadId] = useState('')
+  const [asignacionTurno, setAsignacionTurno] = useState('Mañana')
+  const [asignacionHoraInicio, setAsignacionHoraInicio] = useState('')
+  const [asignacionHoraFin, setAsignacionHoraFin] = useState('')
+  const [asignacionDias, setAsignacionDias] = useState('')
+  const [asignacionSeccion, setAsignacionSeccion] = useState('')
+  const [asignacionEstudiantes, setAsignacionEstudiantes] = useState('0')
   const [nucleoId, setNucleoId] = useState('')
   const [tieneExtensiones, setTieneExtensiones] = useState('no')
   const [extension, setExtension] = useState('')
@@ -82,16 +96,20 @@ export default function App() {
 
   async function loadData() {
     setLoading(true); setError('')
-    const [n, e, c] = await Promise.all([
+    const [n, e, c, a, aa] = await Promise.all([
       supabase.from('nucleos').select('id,nombre,activo,estado').order('nombre'),
       supabase.from('extensiones').select('id,nucleo_id,nombre,activa').order('nombre'),
-      supabase.from('capacidad_academica').select('id,nucleo_id,extension_id,periodo,programa,trayecto,cantidad_docentes,cantidad_estudiantes,cantidad_aulas,capacidad_por_aula,observaciones,creado_en').order('creado_en', { ascending: false })
+      supabase.from('capacidad_academica').select('id,nucleo_id,extension_id,periodo,programa,trayecto,cantidad_docentes,cantidad_estudiantes,cantidad_aulas,capacidad_por_aula,observaciones,creado_en').order('creado_en', { ascending: false }),
+      supabase.from('aulas').select('id,nucleo_id,extension_id,nombre,capacidad_puestos,observaciones,activa').order('nombre'),
+      supabase.from('asignaciones_aulas').select('id,nucleo_id,aula_id,capacidad_academica_id,turno,hora_inicio,hora_fin,dias,seccion,estudiantes_asignados').order('creado_en', { ascending: false })
     ])
-    const problem = n.error || e.error || c.error
+    const problem = n.error || e.error || c.error || a.error || aa.error
     if (problem) setError(problem.message + ' Revisa las tablas y supabase/policies.sql en Supabase.')
     if (n.data) { setNucleos(n.data); if (!nucleoId && n.data.length) setNucleoId(String(n.data[0].id)) }
     if (e.data) setExtensiones(e.data)
     if (c.data) setCapacidades(c.data)
+    if (a.data) setAulas(a.data)
+    if (aa.data) setAsignacionesAulas(aa.data)
     setLoading(false)
   }
 
@@ -139,6 +157,27 @@ export default function App() {
     setSaving(false)
     if (error) setError(error.message)
     else { setPeriodo(''); setPrograma(''); setTrayecto('I'); setExtensionId(''); setDocentes('0'); setEstudiantes('0'); setCantidadAulas('0'); setCapacidadPorAula('0'); setObservaciones(''); setNotice('Capacidad académica guardada.'); await loadData() }
+  }
+  async function addAula(event) {
+    event.preventDefault()
+    if (!nucleoId || !aulaNombre.trim() || Number(aulaCapacidad) < 1) { setError('Indica el nombre del aula y una capacidad de puestos mayor que cero.'); return }
+    setSaving(true); setError(''); setNotice('')
+    const { error } = await supabase.from('aulas').insert({ nucleo_id: Number(nucleoId), extension_id: aulaExtensionId ? Number(aulaExtensionId) : null, nombre: aulaNombre.trim(), capacidad_puestos: Number(aulaCapacidad), observaciones: aulaObservaciones.trim() || null })
+    setSaving(false)
+    if (error) setError(error.message)
+    else { setAulaNombre(''); setAulaCapacidad(''); setAulaObservaciones(''); setNotice('Aula incorporada al inventario físico.'); await loadData() }
+  }
+  async function addAsignacionAula(event) {
+    event.preventDefault()
+    const selectedCapacity = capacidades.find(c => String(c.id) === String(asignacionCapacidadId))
+    const selectedRoom = aulas.find(a => String(a.id) === String(asignacionAulaId))
+    if (!selectedCapacity || !selectedRoom || String(selectedCapacity.nucleo_id) !== String(nucleoId) || String(selectedRoom.nucleo_id) !== String(nucleoId)) { setError('Selecciona un aula y un registro académico del núcleo actual.'); return }
+    if (Number(asignacionEstudiantes) > Number(selectedRoom.capacidad_puestos)) { setError('Los estudiantes asignados superan los puestos disponibles del aula.'); return }
+    setSaving(true); setError(''); setNotice('')
+    const { error } = await supabase.from('asignaciones_aulas').insert({ nucleo_id: Number(nucleoId), aula_id: Number(asignacionAulaId), capacidad_academica_id: Number(asignacionCapacidadId), turno: asignacionTurno, hora_inicio: asignacionHoraInicio || null, hora_fin: asignacionHoraFin || null, dias: asignacionDias.trim() || null, seccion: asignacionSeccion.trim() || null, estudiantes_asignados: Number(asignacionEstudiantes) })
+    setSaving(false)
+    if (error) setError(error.message)
+    else { setAsignacionHoraInicio(''); setAsignacionHoraFin(''); setAsignacionDias(''); setAsignacionSeccion(''); setAsignacionEstudiantes('0'); setNotice('Uso académico del aula registrado.'); await loadData() }
   }
   async function saveNucleoEstado(item, estado) {
     setError(''); setNotice('')
