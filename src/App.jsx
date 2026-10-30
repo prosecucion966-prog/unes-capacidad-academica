@@ -14,6 +14,9 @@ export default function App() {
   const [capacidades, setCapacidades] = useState([])
   const [aulas, setAulas] = useState([])
   const [asignacionesAulas, setAsignacionesAulas] = useState([])
+  const [aspirantes, setAspirantes] = useState([])
+  const [busquedaAspirante, setBusquedaAspirante] = useState('')
+  const [filtroAspirantePnf, setFiltroAspirantePnf] = useState('todos')
   const [aulaNombre, setAulaNombre] = useState('')
   const [aulaCapacidad, setAulaCapacidad] = useState('')
   const [aulaExtensionId, setAulaExtensionId] = useState('')
@@ -97,20 +100,22 @@ export default function App() {
 
   async function loadData() {
     setLoading(true); setError('')
-    const [n, e, c, a, aa] = await Promise.all([
+    const [n, e, c, a, aa, ad] = await Promise.all([
       supabase.from('nucleos').select('id,nombre,activo,estado').order('nombre'),
       supabase.from('extensiones').select('id,nucleo_id,nombre,activa').order('nombre'),
       supabase.from('capacidad_academica').select('id,nucleo_id,extension_id,periodo,programa,trayecto,cantidad_docentes,cantidad_estudiantes,cantidad_aulas,capacidad_por_aula,observaciones,creado_en').order('creado_en', { ascending: false }),
       supabase.from('aulas').select('id,nucleo_id,extension_id,nombre,capacidad_puestos,observaciones,activa').order('nombre'),
-      supabase.from('asignaciones_aulas').select('id,nucleo_id,aula_id,capacidad_academica_id,turno,hora_inicio,hora_fin,dias,seccion,estudiantes_asignados').order('creado_en', { ascending: false })
+      supabase.from('asignaciones_aulas').select('id,nucleo_id,aula_id,capacidad_academica_id,turno,hora_inicio,hora_fin,dias,seccion,estudiantes_asignados').order('creado_en', { ascending: false }),
+      supabase.from('aspirantes_admision').select('id,nucleo_id,extension_id,nucleo_origen_pdf,apellidos,nombres,cedula,genero,pnf,proceso,semana,prueba_medica_estado,prueba_psicologica_estado,prueba_fisica_estado,estado_general').order('apellidos')
     ])
-    const problem = n.error || e.error || c.error || a.error || aa.error
+    const problem = n.error || e.error || c.error || a.error || aa.error || (ad.error && !String(ad.error.message || '').includes('aspirantes_admision'))
     if (problem) setError(problem.message + ' Revisa las tablas y supabase/policies.sql en Supabase.')
     if (n.data) { setNucleos(n.data); if (!nucleoId && n.data.length) setNucleoId(String(n.data[0].id)) }
     if (e.data) setExtensiones(e.data)
     if (c.data) setCapacidades(c.data)
     if (a.data) setAulas(a.data)
     if (aa.data) setAsignacionesAulas(aa.data)
+    if (ad.data) setAspirantes(ad.data)
     setLoading(false)
   }
 
@@ -303,9 +308,49 @@ export default function App() {
       {error && <p className="alert error">{error}</p>}{notice && <p className="alert success">{notice}</p>}
       <nav className="report-tabs">
         <button className={activeTab === 'registro' ? 'tab active-tab' : 'tab'} onClick={() => setActiveTab('registro')}>Registro académico</button>
+        <button className={activeTab === 'admision' ? 'tab active-tab' : 'tab'} onClick={() => setActiveTab('admision')}>Admisión de aspirantes</button>
         <button className={activeTab === 'reportes' ? 'tab active-tab' : 'tab'} onClick={() => setActiveTab('reportes')}>📊 Reportes y estadísticas</button>
         <button className={activeTab === 'mapa' ? 'tab active-tab' : 'tab'} onClick={() => setActiveTab('mapa')}>🗺️ Mapa de Venezuela</button>
       </nav>
+      {activeTab === 'admision' && (() => {
+        const visibles = aspirantes.filter(a =>
+          (isAdmin || String(a.nucleo_id) === String(nucleoId)) &&
+          (filtroAspirantePnf === 'todos' || a.pnf === filtroAspirantePnf) &&
+          (!busquedaAspirante || [a.apellidos,a.nombres,a.cedula,a.nucleo_origen_pdf].some(v => String(v || '').toLocaleLowerCase('es').includes(busquedaAspirante.toLocaleLowerCase('es'))))
+        )
+        const aprobados = visibles.filter(a => a.estado_general === 'Aprobado para ingresar').length
+        const rechazados = visibles.filter(a => a.estado_general === 'No aprobado').length
+        const evaluacion = visibles.length - aprobados - rechazados
+        const nucleoNombre = id => nucleos.find(n => String(n.id) === String(id))?.nombre || 'Núcleo sin asignar'
+        return <section className="report-section">
+          <div className="report-heading"><div><p className="eyebrow">PROCESO ENERO I-2027</p><h2>Admisión de aspirantes</h2><p className="muted">Listado individual, seguimiento de pruebas y comparación de demanda con capacidad instalada.</p></div></div>
+          <div className="stats-grid">
+            <article className="stat-card"><span>Aspirantes registrados</span><strong>{visibles.length}</strong></article>
+            <article className="stat-card"><span>Aprobados para ingresar</span><strong>{aprobados}</strong></article>
+            <article className="stat-card"><span>En evaluación</span><strong>{evaluacion}</strong></article>
+            <article className="stat-card"><span>No aprobados</span><strong>{rechazados}</strong></article>
+          </div>
+          <div className="filters-row">
+            <label>Buscar aspirante<input value={busquedaAspirante} onChange={e=>setBusquedaAspirante(e.target.value)} placeholder="Nombre, apellido o cédula" /></label>
+            <label>PNF<select value={filtroAspirantePnf} onChange={e=>setFiltroAspirantePnf(e.target.value)}><option value="todos">Todos los PNF</option>{pnfOptions.map(p=><option key={p} value={p}>{p}</option>)}</select></label>
+            {isAdmin && <label>Núcleo<select value={reportNucleo} onChange={e=>setReportNucleo(e.target.value)}><option value="todos">Todos los núcleos</option>{nucleos.map(n=><option key={n.id} value={String(n.id)}>{n.nombre}</option>)}</select></label>}
+          </div>
+          <p className="muted">Los resultados médicos, psicológicos y físicos se muestran solo como estados. No se guardan diagnósticos ni informes clínicos.</p>
+          <div className="table-wrap"><table><thead><tr><th>Núcleo</th><th>Aspirante</th><th>Cédula</th><th>PNF</th><th>Semana</th><th>Médica</th><th>Psicológica</th><th>Física</th><th>Resultado</th></tr></thead><tbody>
+            {visibles.filter(a=>reportNucleo==='todos'||String(a.nucleo_id)===reportNucleo).map(a=><tr key={a.id}><td>{nucleoNombre(a.nucleo_id)}</td><td>{a.apellidos}, {a.nombres}</td><td>{a.cedula}</td><td>{a.pnf}</td><td>{a.semana||'—'}</td><td>{a.prueba_medica_estado}</td><td>{a.prueba_psicologica_estado}</td><td>{a.prueba_fisica_estado}</td><td><strong>{a.estado_general}</strong></td></tr>)}
+            {!visibles.length&&<tr><td colSpan="9">Todavía no hay aspirantes cargados. Primero ejecuta la migración de admisión en Supabase.</td></tr>}
+          </tbody></table></div>
+          <div className="report-heading"><div><h3>Demanda frente a capacidad</h3><p className="muted">La comparación por núcleo se completará al importar el padrón y cargar el inventario de aulas y sus asignaciones.</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>Núcleo</th><th>Aspirantes</th><th>Matrícula registrada</th><th>Puestos en aulas activas</th><th>Disponibilidad</th></tr></thead><tbody>
+            {nucleos.filter(n=>isAdmin||String(n.id)===String(nucleoId)).map(n=>{
+              const total=aspirantes.filter(a=>String(a.nucleo_id)===String(n.id)).length
+              const matricula=capacidades.filter(c=>String(c.nucleo_id)===String(n.id)).reduce((v,c)=>v+Number(c.cantidad_estudiantes||0),0)
+              const puestos=aulas.filter(a=>String(a.nucleo_id)===String(n.id)&&a.activa).reduce((v,a)=>v+Number(a.capacidad_puestos||0),0)
+              return <tr key={n.id}><td>{n.nombre}</td><td>{total}</td><td>{matricula}</td><td>{puestos}</td><td>{puestos?Math.max(0,puestos-matricula):'Pendiente de inventario'}</td></tr>
+            })}
+          </tbody></table></div>
+        </section>
+      })()}
       {activeTab === 'mapa' && (() => {
         const nucleosEstado = nucleos.filter(n => String(n.estado || '').toLocaleLowerCase('es') === selectedEstado.toLocaleLowerCase('es'))
         const idsEstado = new Set(nucleosEstado.map(n => String(n.id)))
