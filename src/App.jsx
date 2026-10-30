@@ -361,6 +361,30 @@ export default function App() {
         {!caps.length ? <p className="empty">No hay registros de capacidad para este núcleo.</p> : <div className="table-wrap"><table><thead><tr><th>Período</th><th>Sede/extensión</th><th>PNF</th><th>Trayecto</th><th>Docentes</th><th>Estudiantes</th><th>Aulas del PNF</th><th>Capacidad por aula</th><th>Capacidad total</th><th>Observaciones</th></tr></thead><tbody>{caps.map(c => <tr key={c.id}><td>{c.periodo}</td><td>{extensiones.find(e => e.id === c.extension_id)?.nombre || 'Sede principal'}</td><td>{c.programa || '—'}</td><td>{c.trayecto ? 'Trayecto ' + c.trayecto : '—'}</td><td>{c.cantidad_docentes}</td><td>{c.cantidad_estudiantes}</td><td>{c.cantidad_aulas ?? 0}</td><td>{c.capacidad_por_aula ?? 0}</td><td>{Number(c.cantidad_aulas || 0) * Number(c.capacidad_por_aula || 0)}</td><td>{c.observaciones || '—'}</td></tr>)}</tbody></table></div>}
       </section>
       </>}
+      {activeTab === 'registro' && <section className="panel room-inventory">
+        <div className="section-title"><div><p className="eyebrow">INFRAESTRUCTURA FÍSICA</p><h2>Inventario de aulas</h2><p className="muted">Cada espacio se registra una sola vez, con sus puestos reales. Puede utilizarse en distintos PNF y trayectos en horarios diferentes.</p></div><span className="pill">{aulas.filter(a => String(a.nucleo_id) === String(nucleoId)).length} aulas · {aulas.filter(a => String(a.nucleo_id) === String(nucleoId) && a.activa).reduce((sum,a) => sum + Number(a.capacidad_puestos || 0),0).toLocaleString('es-VE')} puestos</span></div>
+        <form className="room-form" onSubmit={addAula}>
+          <label>Sede o extensión<select value={aulaExtensionId} onChange={e=>setAulaExtensionId(e.target.value)}><option value="">Sede principal</option>{exts.map(e=><option key={e.id} value={e.id}>{e.nombre}</option>)}</select></label>
+          <label>Nombre o código del aula<input value={aulaNombre} onChange={e=>setAulaNombre(e.target.value)} placeholder="Ej. Aula 01" required /></label>
+          <label>Capacidad real (puestos)<input type="number" min="1" step="1" value={aulaCapacidad} onChange={e=>setAulaCapacidad(e.target.value)} required placeholder="Ej. 35" /></label>
+          <label>Observaciones<input value={aulaObservaciones} onChange={e=>setAulaObservaciones(e.target.value)} placeholder="Opcional" /></label>
+          <button className="primary" disabled={saving}>{saving ? 'Guardando…' : 'Agregar aula'}</button>
+        </form>
+        <div className="table-wrap"><table><thead><tr><th>Aula</th><th>Sede</th><th>Puestos</th><th>Estado</th><th>Observaciones</th></tr></thead><tbody>{aulas.filter(a=>String(a.nucleo_id)===String(nucleoId)).map(a=><tr key={a.id}><td>{a.nombre}</td><td>{extensiones.find(e=>String(e.id)===String(a.extension_id))?.nombre || 'Sede principal'}</td><td>{a.capacidad_puestos}</td><td>{a.activa?'Activa':'Inactiva'}</td><td>{a.observaciones||'—'}</td></tr>)}{!aulas.some(a=>String(a.nucleo_id)===String(nucleoId))&&<tr><td colSpan="5">Aún no se han registrado aulas físicas.</td></tr>}</tbody></table></div>
+        <h3>Asignar un aula a un PNF y trayecto</h3><p className="muted">La misma aula puede tener varias asignaciones en turnos distintos.</p>
+        <form className="room-form" onSubmit={addAsignacionAula}>
+          <label>Aula<select value={asignacionAulaId} onChange={e=>setAsignacionAulaId(e.target.value)} required><option value="">Selecciona un aula</option>{aulas.filter(a=>String(a.nucleo_id)===String(nucleoId)&&a.activa).map(a=><option key={a.id} value={a.id}>{a.nombre} · {a.capacidad_puestos} puestos</option>)}</select></label>
+          <label>Registro PNF / trayecto<select value={asignacionCapacidadId} onChange={e=>setAsignacionCapacidadId(e.target.value)} required><option value="">Selecciona un registro académico</option>{caps.map(c=><option key={c.id} value={c.id}>{c.programa} · Trayecto {c.trayecto} · {c.periodo}</option>)}</select></label>
+          <label>Turno<select value={asignacionTurno} onChange={e=>setAsignacionTurno(e.target.value)}><option>Mañana</option><option>Tarde</option><option>Noche</option></select></label>
+          <label>Estudiantes en esta aula<input type="number" min="0" step="1" value={asignacionEstudiantes} onChange={e=>setAsignacionEstudiantes(e.target.value)} required /></label>
+          <label>Hora de inicio<input type="time" value={asignacionHoraInicio} onChange={e=>setAsignacionHoraInicio(e.target.value)} /></label>
+          <label>Hora de fin<input type="time" value={asignacionHoraFin} onChange={e=>setAsignacionHoraFin(e.target.value)} /></label>
+          <label>Días<input value={asignacionDias} onChange={e=>setAsignacionDias(e.target.value)} placeholder="Ej. Lunes y miércoles" /></label>
+          <label>Sección / grupo<input value={asignacionSeccion} onChange={e=>setAsignacionSeccion(e.target.value)} placeholder="Ej. Sección A" /></label>
+          <button className="primary" disabled={saving}>{saving ? 'Guardando…' : 'Registrar uso del aula'}</button>
+        </form>
+        <div className="table-wrap"><table><thead><tr><th>Aula</th><th>PNF / trayecto</th><th>Período</th><th>Turno</th><th>Horario</th><th>Grupo / días</th><th>Estudiantes</th></tr></thead><tbody>{asignacionesAulas.filter(x=>String(x.nucleo_id)===String(nucleoId)).map(x=>{const a=aulas.find(v=>String(v.id)===String(x.aula_id));const c=capacidades.find(v=>String(v.id)===String(x.capacidad_academica_id));return <tr key={x.id}><td>{a?.nombre||'—'}</td><td>{c?.programa||'—'} · {c?.trayecto||'—'}</td><td>{c?.periodo||'—'}</td><td>{x.turno}</td><td>{x.hora_inicio&&x.hora_fin?x.hora_inicio+'–'+x.hora_fin:'—'}</td><td>{[x.seccion,x.dias].filter(Boolean).join(' · ')||'—'}</td><td>{x.estudiantes_asignados}</td></tr>})}{!asignacionesAulas.some(x=>String(x.nucleo_id)===String(nucleoId))&&<tr><td colSpan="7">Todavía no hay asignaciones de aulas.</td></tr>}</tbody></table></div>
+      </section>}
       <footer>UNES · Sistema de Capacidad Académica</footer>
     </main>
   </div>
