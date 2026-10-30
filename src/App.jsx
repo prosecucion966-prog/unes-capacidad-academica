@@ -379,6 +379,7 @@ export default function App() {
         const nucleosEstado = nucleos.filter(n => String(n.estado || '').toLocaleLowerCase('es') === selectedEstado.toLocaleLowerCase('es'))
         const idsEstado = new Set(nucleosEstado.map(n => String(n.id)))
         const capsEstado = capacidades.filter(c => idsEstado.has(String(c.nucleo_id)))
+        const aspirantesEstado = aspirantes.filter(a => idsEstado.has(String(a.nucleo_id)))
         const totalDocEstado = capsEstado.reduce((a,c) => a + Number(c.cantidad_docentes || 0), 0)
         const totalEstEstado = capsEstado.reduce((a,c) => a + Number(c.cantidad_estudiantes || 0), 0)
         const countFor = estado => nucleos.filter(n => String(n.estado || '').toLocaleLowerCase('es') === estado.toLocaleLowerCase('es')).length
@@ -398,9 +399,9 @@ export default function App() {
             </article>
             <article className="report-chart state-summary">
               <p className="eyebrow">ESTADO SELECCIONADO</p><h2>{selectedEstado}</h2>
-              <div className="state-kpis"><div><span>Núcleos</span><strong>{nucleosEstado.length}</strong></div><div><span>Registros</span><strong>{capsEstado.length}</strong></div><div><span>Docentes</span><strong>{totalDocEstado.toLocaleString('es-VE')}</strong></div><div><span>Estudiantes</span><strong>{totalEstEstado.toLocaleString('es-VE')}</strong></div></div>
+              <div className="state-kpis"><div><span>Núcleos</span><strong>{nucleosEstado.length}</strong></div><div><span>Aspirantes</span><strong>{aspirantesEstado.length.toLocaleString('es-VE')}</strong></div><div><span>Docentes</span><strong>{totalDocEstado.toLocaleString('es-VE')}</strong></div><div><span>Estudiantes</span><strong>{totalEstEstado.toLocaleString('es-VE')}</strong></div></div>
               {!nucleosEstado.length ? <p className="empty">Todavía no hay núcleos asignados a este estado. {isAdmin ? 'Usa el panel de asignación que aparece abajo.' : 'El administrador debe asignar el estado a cada núcleo.'}</p> :
-                <div className="state-nucleus-list">{nucleosEstado.map(n=>{const nc=capacidades.filter(c=>String(c.nucleo_id)===String(n.id));const ne=extensiones.filter(e=>String(e.nucleo_id)===String(n.id));return <div className="state-nucleus" key={n.id}><div><strong>{n.nombre}</strong><small>{ne.length} extensiones · {nc.length} registros de capacidad</small></div><div className="state-nucleus-metrics"><span>{nc.reduce((a,c)=>a+Number(c.cantidad_docentes||0),0)} docentes</span><span>{nc.reduce((a,c)=>a+Number(c.cantidad_estudiantes||0),0)} estudiantes</span></div></div>})}</div>}
+                <div className="state-nucleus-list">{nucleosEstado.map(n=>{const nc=capacidades.filter(c=>String(c.nucleo_id)===String(n.id));const ne=extensiones.filter(e=>String(e.nucleo_id)===String(n.id));return <div className="state-nucleus" key={n.id}><div><strong>{n.nombre}</strong><small>{aspirantes.filter(a=>String(a.nucleo_id)===String(n.id)).length.toLocaleString('es-VE')} aspirantes · {ne.length} extensiones · {nc.length} registros de capacidad</small></div><div className="state-nucleus-metrics"><span>{nc.reduce((a,c)=>a+Number(c.cantidad_docentes||0),0)} docentes</span><span>{nc.reduce((a,c)=>a+Number(c.cantidad_estudiantes||0),0)} estudiantes</span></div></div>})}</div>}
             </article>
           </div>
           {isAdmin && <article className="report-chart state-admin"><h3>Asignar estado a cada núcleo</h3><p className="muted">Selecciona el estado correspondiente. Estos cambios no alteran los registros académicos.</p><div className="state-assignment-list">{nucleos.map(n=><label key={n.id}>{n.nombre}<select value={n.estado || ''} onChange={e=>saveNucleoEstado(n,e.target.value)}><option value="">Sin asignar</option>{estadosVenezuela.map(estado=><option key={estado}>{estado}</option>)}</select></label>)}</div></article>}
@@ -433,7 +434,7 @@ export default function App() {
             <article className="report-kpi"><span>Registros encontrados</span><strong>{filtered.length}</strong><small>Según los filtros aplicados</small></article>
             <article className="report-kpi"><span>Total de docentes</span><strong>{totalDoc.toLocaleString('es-VE')}</strong><small>Personal académico registrado</small></article>
             <article className="report-kpi"><span>Total de estudiantes</span><strong>{totalEst.toLocaleString('es-VE')}</strong><small>Matrícula registrada</small></article>
-            <article className="report-kpi"><span>Total de aulas registradas</span><strong>{uniqueRoomIds.length.toLocaleString('es-VE')}</strong><small>Según los filtros aplicados</small></article>
+            <article className="report-kpi"><span>Aspirantes registrados</span><strong>{aspirantes.filter(a => (reportNucleo === 'todos' || String(a.nucleo_id) === reportNucleo) && (reportPnf === 'todos' || normalizePnf(a.pnf) === normalizePnf(reportPnf))).length.toLocaleString('es-VE')}</strong><small>Según núcleo y PNF seleccionados</small></article><article className="report-kpi"><span>Total de aulas registradas</span><strong>{uniqueRoomIds.length.toLocaleString('es-VE')}</strong><small>Según los filtros aplicados</small></article>
           </div>
           <div className="report-grid">
             <article className="report-chart"><h3>Estudiantes por PNF</h3><p className="muted">Comparación de matrícula por programa</p>{byPnf.length ? byPnf.map(x=><div className="bar-row" key={x.name}><div className="bar-label"><span>{x.name.replace('PNF en ','')}</span><b>{x.estudiantes}</b></div><div className="bar-track"><div className="bar-fill" style={{width:(x.estudiantes/maxP*100)+'%'}}/></div><small>{x.docentes} docentes</small></div>) : <p className="empty">No hay datos para estos filtros.</p>}</article>
