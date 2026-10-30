@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase, supabaseConfigured } from './supabaseClient'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import * as XLSX from 'xlsx'
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -205,6 +206,61 @@ export default function App() {
     pdf.save('reporte-capacidad-academica-unes.pdf')
   }
 
+  function exportExcel() {
+    const filtered = capacidades.filter(c =>
+      (reportNucleo === 'todos' || String(c.nucleo_id) === reportNucleo) &&
+      (reportPnf === 'todos' || normalizePnf(c.programa) === normalizePnf(reportPnf))
+    )
+    const filteredIds = new Set(filtered.map(c => String(c.id)))
+    const filteredAssignments = asignacionesAulas.filter(x => filteredIds.has(String(x.capacidad_academica_id)))
+    const usedRoomIds = new Set(filteredAssignments.map(x => String(x.aula_id)))
+    const filteredRooms = aulas.filter(a =>
+      (reportNucleo === 'todos' || String(a.nucleo_id) === reportNucleo) &&
+      (reportPnf === 'todos' || usedRoomIds.has(String(a.id)))
+    )
+    const nucleoName = id => nucleos.find(n => String(n.id) === String(id))?.nombre || '—'
+    const extensionName = id => extensiones.find(e => String(e.id) === String(id))?.nombre || 'Sede principal'
+    const roomName = id => aulas.find(a => String(a.id) === String(id))?.nombre || '—'
+    const sheets = [
+      { name: 'Resumen', rows: [
+        ['REPORTE DE CAPACIDAD ACADÉMICA UNES'],
+        ['Fecha de generación', new Date().toLocaleString('es-VE')],
+        ['Filtro de núcleo', reportNucleo === 'todos' ? 'Todos' : nucleoName(reportNucleo)],
+        ['Filtro de PNF', reportPnf === 'todos' ? 'Todos los PNF' : reportPnf],
+        [],
+        ['Indicador', 'Total'],
+        ['Registros académicos', filtered.length],
+        ['Docentes', filtered.reduce((sum,c)=>sum+Number(c.cantidad_docentes||0),0)],
+        ['Estudiantes', filtered.reduce((sum,c)=>sum+Number(c.cantidad_estudiantes||0),0)],
+        ['Aulas físicas registradas', filteredRooms.length],
+        ['Puestos físicos instalados', filteredRooms.filter(a=>a.activa).reduce((sum,a)=>sum+Number(a.capacidad_puestos||0),0)]
+      ]},
+      { name: 'Matrícula y docentes', rows: [
+        ['Núcleo','Sede o extensión','Período','PNF','Trayecto','Docentes','Estudiantes','Observaciones'],
+        ...filtered.map(c=>[nucleoName(c.nucleo_id),extensionName(c.extension_id),c.periodo,c.programa,c.trayecto,c.cantidad_docentes,c.cantidad_estudiantes,c.observaciones||''])
+      ]},
+      { name: 'Inventario de aulas', rows: [
+        ['Núcleo','Sede o extensión','Aula','Capacidad (puestos)','Estado','Observaciones'],
+        ...filteredRooms.map(a=>[nucleoName(a.nucleo_id),extensionName(a.extension_id),a.nombre,a.capacidad_puestos,a.activa?'Activa':'Inactiva',a.observaciones||''])
+      ]},
+      { name: 'Asignaciones de aulas', rows: [
+        ['Núcleo','Aula','Capacidad del aula','PNF','Trayecto','Período','Turno','Hora inicio','Hora fin','Días','Sección','Estudiantes asignados'],
+        ...filteredAssignments.map(x=>{
+          const room=aulas.find(a=>String(a.id)===String(x.aula_id))
+          const cap=capacidades.find(c=>String(c.id)===String(x.capacidad_academica_id))
+          return [nucleoName(x.nucleo_id),roomName(x.aula_id),room?.capacidad_puestos??'',cap?.programa||'',cap?.trayecto||'',cap?.periodo||'',x.turno,x.hora_inicio||'',x.hora_fin||'',x.dias||'',x.seccion||'',x.estudiantes_asignados]
+        })
+      ]}
+    ]
+    const workbook = XLSX.utils.book_new()
+    sheets.forEach(({name,rows})=>{
+      const worksheet=XLSX.utils.aoa_to_sheet(rows)
+      worksheet['!cols']=rows[0]?.map((_,i)=>({wch:Math.min(38,Math.max(14,...rows.map(row=>String(row[i]??'').length+2)))}))||[]
+      XLSX.utils.book_append_sheet(workbook,worksheet,name)
+    })
+    XLSX.writeFile(workbook,'reporte-capacidad-academica-unes.xlsx')
+  }
+
   if (!supabaseConfigured) return <main className="center"><section className="panel setup">
     <div className="logo">UNES</div><p className="eyebrow">CONFIGURACIÓN INICIAL</p><h1>Conectar Supabase</h1>
     <p>Crea un archivo <code>.env</code> a partir de <code>.env.example</code> y coloca la URL del proyecto y la clave pública publishable.</p>
@@ -243,7 +299,7 @@ export default function App() {
       <div className="actions"><span>{session.user.email}</span><button className="secondary" onClick={signOut}>Cerrar sesión</button></div>
     </header>
     <main className="content">
-      <div className="welcome"><div><p className="eyebrow">PANEL DE CONTROL</p><h1>Registro académico</h1><p className="muted">Administra núcleos, extensiones y capacidad académica.</p></div><button className="primary" onClick={exportPdf}>Descargar reporte PDF</button></div>
+      <div className="welcome"><div><p className="eyebrow">PANEL DE CONTROL</p><h1>Registro académico</h1><p className="muted">Administra núcleos, extensiones y capacidad académica.</p></div><div className="export-actions"><button className="primary" onClick={exportPdf}>Descargar reporte PDF</button><button className="secondary" onClick={exportExcel}>Exportar Excel</button></div></div>
       {error && <p className="alert error">{error}</p>}{notice && <p className="alert success">{notice}</p>}
       <nav className="report-tabs">
         <button className={activeTab === 'registro' ? 'tab active-tab' : 'tab'} onClick={() => setActiveTab('registro')}>Registro académico</button>
@@ -299,7 +355,7 @@ export default function App() {
         const maxP = Math.max(1,...byPnf.map(x=>x.estudiantes))
         const maxN = Math.max(1,...byNucleo.map(x=>x.estudiantes))
         return <section className="reports-area">
-          <div className="report-heading"><div><p className="eyebrow">ANÁLISIS INSTITUCIONAL</p><h2>Panel de reportes</h2><p className="muted">Explora la capacidad académica con filtros dinámicos.</p></div><button className="primary" onClick={exportPdf}>Descargar PDF</button></div>
+          <div className="report-heading"><div><p className="eyebrow">ANÁLISIS INSTITUCIONAL</p><h2>Panel de reportes</h2><p className="muted">Explora la capacidad académica con filtros dinámicos.</p></div><div className="export-actions"><button className="primary" onClick={exportPdf}>Descargar PDF</button><button className="secondary" onClick={exportExcel}>Exportar Excel (.xlsx)</button></div></div>
           <div className="report-filters">
             <label>Filtrar por núcleo<select value={reportNucleo} onChange={e=>setReportNucleo(e.target.value)}><option value="todos">Todos los núcleos</option>{nucleos.map(n=><option key={n.id} value={String(n.id)}>{n.nombre}</option>)}</select></label>
             <label>Filtrar por PNF<select value={reportPnf} onChange={e=>setReportPnf(e.target.value)}><option value="todos">Todos los PNF</option>{pnfOptions.map(p=><option key={p} value={p}>{p}</option>)}</select></label>
