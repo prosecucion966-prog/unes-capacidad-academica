@@ -15,6 +15,8 @@ export default function App() {
   const [aulas, setAulas] = useState([])
   const [asignacionesAulas, setAsignacionesAulas] = useState([])
   const [aspirantes, setAspirantes] = useState([])
+  const [aspirantesLoaded, setAspirantesLoaded] = useState(false)
+  const [loadingAspirantes, setLoadingAspirantes] = useState(false)
   const [busquedaAspirante, setBusquedaAspirante] = useState('')
   const [filtroAspirantePnf, setFiltroAspirantePnf] = useState('todos')
   const [aulaNombre, setAulaNombre] = useState('')
@@ -91,6 +93,20 @@ export default function App() {
   useEffect(() => { if (session) loadData() }, [session])
 
   useEffect(() => {
+    if (!session || aspirantesLoaded || loadingAspirantes || !['admision','mapa','reportes'].includes(activeTab)) return
+    let cancelled = false
+    setLoadingAspirantes(true)
+    loadAllAspirantes().then(({ data, error }) => {
+      if (cancelled) return
+      if (error) setError('No se pudieron cargar los aspirantes: ' + error.message)
+      else { setAspirantes(data || []); setAspirantesLoaded(true) }
+      setLoadingAspirantes(false)
+    })
+    return () => { cancelled = true }
+  }, [session, activeTab, aspirantesLoaded, loadingAspirantes])
+
+
+  useEffect(() => {
     if (!supabaseConfigured || session) return
     supabase.from('nucleos').select('id,nombre,activo,estado').order('nombre').then(({ data, error }) => {
       if (error) { setError('No se pudo cargar la lista de núcleos: ' + error.message); return }
@@ -120,22 +136,20 @@ export default function App() {
   }
   async function loadData() {
     setLoading(true); setError('')
-    const [n, e, c, a, aa, ad] = await Promise.all([
+    const [n, e, c, a, aa] = await Promise.all([
       supabase.from('nucleos').select('id,nombre,activo,estado').order('nombre'),
       supabase.from('extensiones').select('id,nucleo_id,nombre,activa').order('nombre'),
       supabase.from('capacidad_academica').select('id,nucleo_id,extension_id,periodo,programa,trayecto,cantidad_docentes,cantidad_estudiantes,cantidad_aulas,capacidad_por_aula,observaciones,creado_en').order('creado_en', { ascending: false }),
       supabase.from('aulas').select('id,nucleo_id,extension_id,nombre,capacidad_puestos,observaciones,activa').order('nombre'),
       supabase.from('asignaciones_aulas').select('id,nucleo_id,aula_id,capacidad_academica_id,turno,hora_inicio,hora_fin,dias,seccion,estudiantes_asignados').order('creado_en', { ascending: false }),
-      loadAllAspirantes()
     ])
-    const problem = n.error || e.error || c.error || a.error || aa.error || (ad.error && !String(ad.error.message || '').includes('aspirantes_admision'))
+    const problem = n.error || e.error || c.error || a.error || aa.error
     if (problem) setError(problem.message + ' Revisa las tablas y supabase/policies.sql en Supabase.')
     if (n.data) { setNucleos(n.data); if (!nucleoId && n.data.length) setNucleoId(String(n.data[0].id)) }
     if (e.data) setExtensiones(e.data)
     if (c.data) setCapacidades(c.data)
     if (a.data) setAulas(a.data)
     if (aa.data) setAsignacionesAulas(aa.data)
-    if (ad.data) setAspirantes(ad.data)
     setLoading(false)
   }
 
