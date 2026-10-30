@@ -325,10 +325,18 @@ export default function App() {
         return <section className="report-section">
           <div className="report-heading"><div><p className="eyebrow">PROCESO ENERO I-2027</p><h2>Admisión de aspirantes</h2><p className="muted">Listado individual, seguimiento de pruebas y comparación de demanda con capacidad instalada.</p></div></div>
           <div className="stats-grid">
-            <article className="stat-card"><span>Aspirantes registrados</span><strong>{visibles.length}</strong></article>
-            <article className="stat-card"><span>Aprobados para ingresar</span><strong>{aprobados}</strong></article>
-            <article className="stat-card"><span>En evaluación</span><strong>{evaluacion}</strong></article>
-            <article className="stat-card"><span>No aprobados</span><strong>{rechazados}</strong></article>
+            <article className="stat-card" style={{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:'8px',minWidth:0}}>
+              <span>Aspirantes registrados</span><strong style={{display:'block',fontSize:'1.8rem',lineHeight:1.2,fontVariantNumeric:'tabular-nums'}}>{visibles.length.toLocaleString('es-VE')}</strong>
+            </article>
+            <article className="stat-card" style={{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:'8px',minWidth:0}}>
+              <span>Aprobados para ingresar</span><strong style={{display:'block',fontSize:'1.8rem',lineHeight:1.2,fontVariantNumeric:'tabular-nums'}}>{aprobados.toLocaleString('es-VE')}</strong>
+            </article>
+            <article className="stat-card" style={{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:'8px',minWidth:0}}>
+              <span>En evaluación</span><strong style={{display:'block',fontSize:'1.8rem',lineHeight:1.2,fontVariantNumeric:'tabular-nums'}}>{evaluacion.toLocaleString('es-VE')}</strong>
+            </article>
+            <article className="stat-card" style={{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:'8px',minWidth:0}}>
+              <span>No aprobados</span><strong style={{display:'block',fontSize:'1.8rem',lineHeight:1.2,fontVariantNumeric:'tabular-nums'}}>{rechazados.toLocaleString('es-VE')}</strong>
+            </article>
           </div>
           <div className="filters-row">
             <label>Buscar aspirante<input value={busquedaAspirante} onChange={e=>setBusquedaAspirante(e.target.value)} placeholder="Nombre, apellido o cédula" /></label>
