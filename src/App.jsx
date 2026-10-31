@@ -18,6 +18,8 @@ export default function App() {
   const [aspirantesLoaded, setAspirantesLoaded] = useState(false)
   const [loadingAspirantes, setLoadingAspirantes] = useState(false)
   const [paginaAspirantes, setPaginaAspirantes] = useState(0)
+  const [paginaActualizacion, setPaginaActualizacion] = useState(0)
+  const [guardandoAspirante, setGuardandoAspirante] = useState(null)
   const [busquedaAspirante, setBusquedaAspirante] = useState('')
   const [filtroAspirantePnf, setFiltroAspirantePnf] = useState('todos')
   const [aulaNombre, setAulaNombre] = useState('')
@@ -94,7 +96,7 @@ export default function App() {
   useEffect(() => { if (session) loadData() }, [session])
 
   useEffect(() => {
-    if (!session || aspirantesLoaded || loadingAspirantes || !['admision','mapa','reportes'].includes(activeTab)) return
+    if (!session || aspirantesLoaded || loadingAspirantes || !['admision','actualizacion','mapa','reportes'].includes(activeTab)) return
     let cancelled = false
     setLoadingAspirantes(true)
     loadAllAspirantes().then(({ data, error }) => {
@@ -154,6 +156,20 @@ export default function App() {
     setLoading(false)
   }
 
+  async function updateAspirantePrueba(id, campo, valor) {
+    setGuardandoAspirante(id); setError(''); setNotice('')
+    const { error } = await supabase.from('aspirantes_admision').update({ [campo]: valor }).eq('id', id)
+    setGuardandoAspirante(null)
+    if (error) { setError('No se pudo guardar el resultado: ' + error.message); return }
+    setAspirantes(prev => prev.map(a => {
+      if (String(a.id) !== String(id)) return a
+      const updated = { ...a, [campo]: valor }
+      const estados = [updated.prueba_medica_estado, updated.prueba_psicologica_estado, updated.prueba_fisica_estado]
+      updated.estado_general = estados.every(x => x === 'Aprobado') ? 'Aprobado para ingresar' : estados.includes('No aprobado') ? 'No aprobado' : 'En evaluación'
+      return updated
+    }))
+    setNotice('Resultado guardado correctamente.')
+  }
   async function signIn(event) {
     event.preventDefault(); setError(''); setNotice('')
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -344,6 +360,7 @@ export default function App() {
       <nav className="report-tabs">
         <button className={activeTab === 'registro' ? 'tab active-tab' : 'tab'} onClick={() => setActiveTab('registro')}>Registro académico</button>
         <button className={activeTab === 'admision' ? 'tab active-tab' : 'tab'} onClick={() => setActiveTab('admision')}>Admisión de aspirantes</button>
+        <button className={activeTab === 'actualizacion' ? 'tab active-tab' : 'tab'} onClick={() => { setActiveTab('actualizacion'); setPaginaActualizacion(0) }}>Actualización de pruebas</button>
         <button className={activeTab === 'reportes' ? 'tab active-tab' : 'tab'} onClick={() => setActiveTab('reportes')}>📊 Reportes y estadísticas</button>
         <button className={activeTab === 'mapa' ? 'tab active-tab' : 'tab'} onClick={() => setActiveTab('mapa')}>🗺️ Mapa de Venezuela</button>
       </nav>
@@ -398,6 +415,24 @@ export default function App() {
               return <tr key={n.id}><td>{n.nombre}</td><td>{total}</td><td>{matricula}</td><td>{puestos}</td><td>{puestos?Math.max(0,puestos-matricula):'Pendiente de inventario'}</td></tr>
             })}
           </tbody></table></div>
+        </section>
+      })()}
+      {activeTab === 'actualizacion' && (() => {
+        const lista = aspirantes.filter(a => (isAdmin || String(a.nucleo_id) === String(nucleoId)) && (reportNucleo === 'todos' || String(a.nucleo_id) === reportNucleo) && (filtroAspirantePnf === 'todos' || a.pnf === filtroAspirantePnf) && (!busquedaAspirante || [a.apellidos,a.nombres,a.cedula].some(v => String(v || '').toLocaleLowerCase('es').includes(busquedaAspirante.toLocaleLowerCase('es')))))
+        const pageSize = 50
+        const totalPages = Math.max(1, Math.ceil(lista.length / pageSize))
+        const page = Math.min(paginaActualizacion, totalPages - 1)
+        const rows = lista.slice(page * pageSize, (page + 1) * pageSize)
+        const selectEstado = (a, campo) => <select value={a[campo] || 'Pendiente'} disabled={guardandoAspirante === a.id} onChange={e => updateAspirantePrueba(a.id, campo, e.target.value)}><option value="Pendiente">Pendiente</option><option value="Aprobado">Sí pasó</option><option value="No aprobado">No pasó</option></select>
+        return <section className="report-section">
+          <div className="report-heading"><div><p className="eyebrow">REGISTRO DE RESULTADOS</p><h2>Actualización de pruebas</h2><p className="muted">Busca al aspirante y selecciona el resultado de cada prueba. Cada cambio se guarda automáticamente.</p></div></div>
+          <div className="filters-row"><label>Buscar aspirante<input value={busquedaAspirante} onChange={e=>{setBusquedaAspirante(e.target.value);setPaginaActualizacion(0)}} placeholder="Nombre, apellido o cédula" /></label><label>PNF<select value={filtroAspirantePnf} onChange={e=>{setFiltroAspirantePnf(e.target.value);setPaginaActualizacion(0)}}><option value="todos">Todos los PNF</option>{pnfOptions.map(p=><option key={p} value={p}>{p}</option>)}</select></label>{isAdmin && <label>Núcleo<select value={reportNucleo} onChange={e=>{setReportNucleo(e.target.value);setPaginaActualizacion(0)}}><option value="todos">Todos los núcleos</option>{nucleos.map(n=><option key={n.id} value={String(n.id)}>{n.nombre}</option>)}</select></label>}</div>
+          <p className="muted">{lista.length.toLocaleString('es-VE')} aspirantes · Página {page+1} de {totalPages}</p>
+          <div className="table-wrap"><table><thead><tr><th>Aspirante</th><th>Cédula</th><th>PNF</th><th>Prueba médica</th><th>Prueba psicológica</th><th>Prueba física</th><th>Resultado general</th></tr></thead><tbody>
+            {rows.map(a=><tr key={a.id}><td>{a.apellidos}, {a.nombres}</td><td>{a.cedula}</td><td>{a.pnf}</td><td>{selectEstado(a,'prueba_medica_estado')}</td><td>{selectEstado(a,'prueba_psicologica_estado')}</td><td>{selectEstado(a,'prueba_fisica_estado')}</td><td><strong>{a.estado_general || 'En evaluación'}</strong>{guardandoAspirante===a.id && <small> Guardando…</small>}</td></tr>)}
+            {!rows.length && <tr><td colSpan="7">No hay aspirantes que coincidan con la búsqueda.</td></tr>}
+          </tbody></table></div>
+          <div className="export-actions"><button className="secondary" disabled={page===0} onClick={()=>setPaginaActualizacion(p=>Math.max(0,p-1))}>Anterior</button><button className="secondary" disabled={page>=totalPages-1} onClick={()=>setPaginaActualizacion(p=>Math.min(totalPages-1,p+1))}>Siguiente</button></div>
         </section>
       })()}
       {activeTab === 'mapa' && (() => {
